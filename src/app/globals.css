@@ -1,26 +1,373 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
+/* Disarm every `dark:` variant. shadcn's generated `button.tsx` and `input.tsx`
+   ship `dark:` utilities, and Tailwind 4's DEFAULT `dark` variant is a
+   `prefers-color-scheme` media query — so on an OS in dark mode those rules fire
+   with nothing to gate them, putting dark styling on a light-only design. Rebinding
+   the variant to a `.dark` ancestor class makes them all inert, because no `.dark`
+   class is ever rendered. This survives regeneration, which stripping the utilities
+   out of the generated files would not.
+   Placed after all three `@import`s, not immediately after the first: CSS requires
+   every `@import` to precede all other at-rules in a stylesheet (excluding
+   `@charset`/`@layer`), so interleaving this between imports is invalid CSS —
+   Biome's `noInvalidPositionAtImportRule` catches exactly this. */
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  /* Brand — Colors/Brand & Primary */
+  --color-brand: #5009b5;
+  --color-primary: #7142ff;
+  --color-navy: #092c4c;
+  --color-plum: #2b1b49;
+
+  /* Login accent pairing — Slice 1b, extracted from get_design_context on Figma nodes
+     1:45533 (requestor, purple) and 1:36470 (admin, green), cross-checked pixel-for-pixel
+     against the rendered frames (both agree to the exact hex on every value below). Named
+     by role, not hue, so the requestor/admin pairing stays legible.
+
+     Requestor's button fill and dark headline word already resolve to --color-brand and
+     --color-plum above — confirmed via the panel's own radial-gradient fill, whose opaque
+     stop is exactly rgba(80,9,181,1) = #5009b5, matching the Sign-in button. But the
+     "System"/greeting word AND the Domain ID/Password field labels use a third, lighter
+     shade neither existing token covers (#733ac4) — the task-2 plan brief assumed this
+     word reused --color-brand; it does not, so it needs its own token.
+
+     Admin has no purple-side equivalent at all: panel, button+labels, heading, and greeting
+     word are four distinct colours (the plan brief anticipated only two). Its button and
+     field labels share one value (#00650a) that differs from the decorative panel/glass-
+     highlight value (#00652f) only in the blue channel — both are real, deliberate fills for
+     two different roles, not one fill sampled twice. See task-2-report.md for the full
+     discrepancy against the plan brief's measured table. */
+  --color-requestor-text-accent: #733ac4;
+  --color-requestor-blob-highlight: #8950da;
+  /* Sign-in field outlines, transcribed from the Login design: the resting
+     border on the Domain ID boxes / password input, and the stronger tint a box
+     takes once it holds a character. Requestor-only; admin's fields fall back to
+     a neutral gray line (no admin field design exists to transcribe). */
+  --color-requestor-field-line: #e0d6f2;
+  --color-requestor-field-line-strong: #c9b6ec;
+  --color-admin-accent: #00650a;
+  --color-admin-panel: #00652f;
+  --color-admin-heading: #0c111a;
+  --color-admin-text-accent: #54884c;
+  --color-admin-blob-highlight: #379c66;
+
+  /* ── Requestor portal hero ──────────────────────────────────────────────────
+     Imported 2026-08-06 from the Claude Design project "Requestor booking wizard
+     handoff", document `Requestor UI.dc.html`. That document carries the Figma
+     values forward as raw fills, so these are transcribed from it verbatim
+     rather than re-sampled — Slice 1b established that pixel-sampling a render
+     loses to the authoritative source three times out of four.
+
+     The hero is one three-stop radial gradient (inner glow at 8% 0%, base at
+     55%, deep at the outer edge) with two blob lobes and a bottom scrim over
+     it. `--color-requestor-blob-highlight` (already defined above, for the
+     login panel) is the lobe colour — the two surfaces deliberately share it. */
+  --color-hero-glow: #5f14c9;
+  --color-hero-base: #3d0790;
+  --color-hero-deep: #2a0463;
+  /* Third headline line ("they need to be") and nothing else. Large display
+     text on --color-hero-base, ≈8.1:1 — clears AA comfortably. */
+  --color-hero-accent: #d8c2ff;
+  /* Elevation bases, only ever used through an alpha modifier: the van's
+     drop-shadow, the white CTA's lift, and the bottom legibility scrim. */
+  --color-hero-shadow: #0e0124;
+  --color-hero-scrim: #140230;
+
+  /* Brand tints — the two lightest steps of the purple ramp. Both are
+     decorative-only surfaces; neither ever carries text at its own contrast. */
+  --color-brand-tint: #ede4ff;
+  --color-brand-wash: #faf7fe;
+
+  /* Site colour-coding for the admin calendar, where a block's fill is what
+     tells an admin which site a trip belongs to. Named by site rather than by
+     hue so a third site is one pair of tokens, not a hunt through three files.
+     The `-ink` value carries text ON its own `-tint`: brand on brand-tint is
+     the pairing the status chips already use, and admin-panel (#00652f) on
+     #e3f2e9 clears AA comfortably. */
+  --color-site-iloilo-tint: var(--color-brand-tint);
+  --color-site-iloilo-ink: var(--color-brand);
+  --color-site-manila-tint: #e3f2e9;
+  --color-site-manila-ink: var(--color-admin-panel);
+
+  /* Grays — Colors/Grays */
+  --color-gray-1: #231e33;
+  --color-gray-2: #666666;
+  --color-gray-3: #949494;
+  --color-gray-4: #cccccc;
+  --color-gray-5: #f5f5f5;
+  --color-gray-6: #eeeeee;
+
+  /* Utility — Colors/Utility */
+  --color-error: #d20a3c;
+  --color-success: #108808;
+
+  /* Status and destructive-action tints, from the booking wizard and the manage
+     table's status chips. Surfaces only — the text on them is always
+     --color-error / --color-success, never these. */
+  --color-error-tint: #fdecf0;
+  --color-error-tint-border: #f3d3dc;
+  --color-success-tint: #eefaee;
+
+  --color-background: #ffffff;
+  --color-foreground: var(--color-gray-1);
+
+  /* Elevance Sans is a licensed corporate typeface. Until web font files are
+     licensed and installed, this stack degrades to a geometric humanist. */
+  --font-sans: "Elevance Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* One tier above Figma's h1, for the requestor hero headline only. The
+     editorial hero needs a size the Figma type scale does not define; the
+     unitless line-height is deliberate (0.95 of whatever size it lands on)
+     because this step is set responsively. */
+  --text-display: 5.25rem;
+  --text-display--line-height: 0.95;
+
+  /* Desktop/Heading — from Figma variables */
+  --text-h1: 3.75rem;
+  --text-h1--line-height: 4.5rem;
+  --text-h2: 3rem;
+  --text-h2--line-height: 3.75rem;
+  --text-h3: 2.25rem;
+  --text-h3--line-height: 3rem;
+
+  /* Desktop/Body — Figma defines only 16/22 for both Large and Small.
+     The two steps below extend the scale downward for data tables and
+     badges; they are additions, not substitutes. */
+  --text-body: 1rem;
+  --text-body--line-height: 1.375rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+
+  --radius-pill: 9999px;
+  --radius-field: 0.5rem;
+  --radius-card: 1rem;
+
+  /* ── shadcn semantic layer, mapped onto the Figma palette ──────────────────
+     shadcn's generated components style themselves through these names, not
+     through the brand tokens above. Every one is REQUIRED: `bg-primary`
+     resolves to --color-primary (defined), but `text-primary-foreground`,
+     `border-input`, `ring-ring`, and `bg-destructive` resolve to names that do
+     not exist unless declared here — and a missing Tailwind colour token emits
+     no CSS and no error, so the failure is a silently unstyled control that
+     passes every build, lint, and test check.
+
+     This mapping IS the "redesign shadcn to the Figma style" requirement: it is
+     the single place where the component library's vocabulary is bound to the
+     brand palette. Change a mapping here, not a class in a component. */
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--color-gray-6);
+  --color-secondary-foreground: var(--color-gray-1);
+  --color-muted: var(--color-gray-5);
+  --color-muted-foreground: var(--color-gray-2);
+  /* gray-4 (#cccccc) on white is ~1.6:1 — below WCAG 1.4.11's 3:1 minimum for
+     component boundaries at ANY usage, not just this one. Needs raising with
+     the designer at the palette level; until then, gray-3 (#949494, ~3.03:1)
+     is the minimum in-palette value that clears 3:1, so these two shadcn
+     tokens use it instead of gray-4. Layout chrome (shells, cards, the login
+     form) references `border-gray-4` directly rather than through these
+     tokens, so this only affects the outline `<Button>` and `<Input>`. */
+  --color-border: var(--color-gray-3);
+  --color-input: var(--color-gray-3);
+  --color-ring: var(--color-primary);
+  --color-destructive: var(--color-error);
+  --color-destructive-foreground: #ffffff;
+  --color-popover: var(--color-background);
+  --color-popover-foreground: var(--color-foreground);
+
+  /* Not referenced by this slice's four primitives, but Task 12's shells and
+     any later `shadcn add` (card, dropdown, table, dialog) reference them, and
+     the failure mode is silent. Declared here so the same gap is not rediscovered
+     one component at a time. */
+  --color-card: var(--color-background);
+  --color-card-foreground: var(--color-foreground);
+  --color-accent: var(--color-gray-5);
+  --color-accent-foreground: var(--color-gray-1);
+}
+
+/* ── Unprefixed aliases — the second half of the same problem ────────────────
+   The `@theme` block above satisfies Tailwind *utility classes* (`bg-primary`,
+   `border-input`). But shadcn's generated components also reach for the BARE,
+   unprefixed names inside raw CSS values, where Tailwind's `--color-` namespace
+   does not apply:
+
+     button.tsx   hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)]
+     sonner.tsx   style={{ "--normal-bg": "var(--popover)", ... }}
+
+   Upstream shadcn's Tailwind v4 template ships a bare `:root` layer for exactly
+   this and aliases it into `@theme inline`. Transcribing only the `@theme` half
+   leaves these unresolved — and an undefined custom property inside `color-mix()`
+   invalidates the whole expression, while Sonner's inline `style` (highest
+   specificity) overrides the library's own defaults with an invalid value. Both
+   fail silently: no CSS, no error, green build.
+
+   Defining the full conventional set rather than only the names referenced today,
+   because the failure mode is invisible and this gap has already been discovered
+   twice — once per channel. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: var(--color-background);
+  --foreground: var(--color-foreground);
+  --primary: var(--color-primary);
+  --primary-foreground: var(--color-primary-foreground);
+  --secondary: var(--color-secondary);
+  --secondary-foreground: var(--color-secondary-foreground);
+  --muted: var(--color-muted);
+  --muted-foreground: var(--color-muted-foreground);
+  --accent: var(--color-accent);
+  --accent-foreground: var(--color-accent-foreground);
+  --destructive: var(--color-destructive);
+  --destructive-foreground: var(--color-destructive-foreground);
+  --card: var(--color-card);
+  --card-foreground: var(--color-card-foreground);
+  --popover: var(--color-popover);
+  --popover-foreground: var(--color-popover-foreground);
+  --border: var(--color-border);
+  --input: var(--color-input);
+  --ring: var(--color-ring);
+  /* Sonner's inline style sets `--border-radius: var(--radius)`. Tailwind never
+     emits a bare `--radius` — it prunes `@theme` tokens no utility-class candidate
+     references, and this one appears only inside a JS string. Without the alias the
+     inline style overrides Sonner's own 8px default with an invalid value and toast
+     corners collapse to 0. */
+  --radius: var(--radius-field);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}
+
+/* ── Requestor hero decorative layers ───────────────────────────────────────
+   Three stacked full-bleed gradients. These live here rather than as arbitrary
+   Tailwind values because each is a 150+ character multi-stop gradient: as a
+   class name it would be unreadable, and any typo inside a bracketed arbitrary
+   value fails silently (Tailwind emits nothing and reports nothing).
+
+   `@utility` rather than `@layer components` so they compose with variants and
+   sort into Tailwind's own cascade correctly.
+
+   Every stop resolves through a token — no literal colour values. The
+   fully-transparent stops are spelled `transparent` deliberately: CSS gradient
+   interpolation is premultiplied (CSS Images 3), so a saturated colour fading
+   to `transparent` does not pick up the grey fringe that the equivalent
+   pre-spec `rgba(…, 0)` workaround was written to avoid. */
+@utility hero-field {
+  background: radial-gradient(
+    120% 90% at 8% 0%,
+    var(--color-hero-glow) 0%,
+    var(--color-hero-base) 55%,
+    var(--color-hero-deep) 100%
+  );
+}
+
+@utility hero-lobes {
+  background:
+    radial-gradient(
+      ellipse 40% 30% at 88% 18%,
+      var(--color-requestor-blob-highlight),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 34% 26% at 22% 88%,
+      var(--color-requestor-blob-highlight),
+      transparent 72%
+    );
+}
+
+/* The bottom legibility scrim is deliberately NOT a custom utility here.
+   Written as one it needs `color-mix()` to reach 72% alpha, and Lightning CSS
+   evaluates any `color-mix()` whose inputs are all statically known — it compiled
+   to a flat `#140230b8` with no reference to `--color-hero-scrim` left anywhere,
+   so editing the token would have changed nothing.
+
+   Tailwind's own `to-hero-scrim/72` emits that same literal only as a legacy
+   fallback, and pairs it with an `@supports (color: color-mix(...))` block that
+   resolves through `var(--color-hero-scrim)`. So in every browser that supports
+   `color-mix` — all current ones — the token is genuinely live, and the baked
+   value is what old browsers get. Applied in `hero-shell.tsx` as
+   `bg-linear-to-b from-transparent to-hero-scrim/72`.
+
+   Worth knowing when adding decorative layers: reach for Tailwind's alpha
+   modifier over a hand-written `color-mix()` in a custom utility.
+
+   Below: applied to the hero van photograph once that asset lands (see
+   hero-shell.tsx).
+   Fades the image out toward its left edge so it dissolves into the gradient
+   field instead of ending on a hard rectangle. */
+/* Faint crossed-hatch weave behind the booking confirmation. Two repeating
+   gradients at opposing angles — same reasoning as the hero layers for living
+   here rather than inside a bracketed class name. */
+@utility done-weave {
+  background-image:
+    repeating-linear-gradient(
+      58deg,
+      color-mix(in srgb, var(--color-primary) 9%, transparent) 0 1px,
+      transparent 1px 46px
+    ),
+    repeating-linear-gradient(
+      -32deg,
+      color-mix(in srgb, var(--color-primary) 7%, transparent) 0 1px,
+      transparent 1px 78px
+    );
+}
+
+/* Faint two-angle weave behind the admin working area and the requestor's
+   manage list. Distinct from `done-weave`: the second gradient is navy rather
+   than purple, which reads as slightly cooler under a dense data table. */
+@utility admin-weave {
+  background-image:
+    repeating-linear-gradient(
+      58deg,
+      color-mix(in srgb, var(--color-primary) 8%, transparent) 0 1px,
+      transparent 1px 46px
+    ),
+    repeating-linear-gradient(
+      -32deg,
+      color-mix(in srgb, var(--color-navy) 5%, transparent) 0 1px,
+      transparent 1px 92px
+    );
+}
+
+@utility hero-van-mask {
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    color-mix(in srgb, black 30%, transparent) 22%,
+    black 55%
+  );
+}
+
+/* ── Login diagonal-wedge panel ──────────────────────────────────────────────
+   The sign-in screens carry a clipped diagonal brand wedge on the right with the
+   van breaking past its edge (see login-hero.tsx). Distinct from the full-bleed
+   `hero-field` above: the glow originates top-RIGHT, because only the right of
+   the viewport falls inside the wedge clip, so a top-left glow would land in the
+   clipped-away region and the wedge would read flat-dark. Values transcribed
+   from the Login design; every stop resolves through a token. */
+@utility login-hero-field {
+  background: radial-gradient(
+    120% 90% at 78% 4%,
+    var(--color-hero-glow) 0%,
+    var(--color-hero-base) 54%,
+    var(--color-hero-deep) 100%
+  );
+}
+
+@utility login-hero-lobes {
+  background:
+    radial-gradient(
+      ellipse 46% 30% at 80% 16%,
+      var(--color-requestor-blob-highlight),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 40% 26% at 26% 86%,
+      var(--color-requestor-blob-highlight),
+      transparent 72%
+    );
 }
