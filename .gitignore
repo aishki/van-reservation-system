@@ -31,7 +31,7 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
+.env
 
 # vercel
 .vercel
@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# agent working files
+AGENTS.md
+# Specs and implementation plans are agent scratch, not documentation.
+# The human-facing docs in docs/ ARE committed.
+/docs/superpowers/
+# 1.3 MB of stale login mockup captures; Figma is the design source of truth.
+/docs/figma-reference/
+
+# SDD scratch — ledgers, briefs, review packages. Never committed.
+/.superpowers/
