@@ -22,7 +22,7 @@ describe("resolveDatabaseUrl", () => {
 
   it("composes from DB_* when DATABASE_URL is absent", () => {
     expect(resolveDatabaseUrl(parts)).toBe(
-      "postgres://am65108:p%40ss%20word@db.example.internal:5432/AutomationsDB",
+      "postgres://DOMAIN:p%40ss%20word@db.example.internal:5432/DB_SAMPLE",
     );
   });
 
@@ -77,7 +77,7 @@ describe("resolveTestDatabaseUrl", () => {
   // database is allowed, and a separate database is the stronger isolation.
   it("derives a sibling DATABASE when no schema is configured", () => {
     expect(resolveTestDatabaseUrl(parts)).toBe(
-      "postgres://am65108:p%40ss%20word@db.example.internal:5432/AutomationsDB_test",
+      "postgres://DOMAIN:p%40ss%20word@db.example.internal:5432/DB_SAMPLE",
     );
   });
 

@@ -45,7 +45,7 @@ Everything else in the example file already works as shipped:
 
 | Variable | Default | Why it's fine |
 |---|---|---|
-| `DATABASE_URL` | `postgres://van:van@localhost:5433/van_reservation` | Matches `docker-compose.yml` exactly |
+| `DATABASE_URL` | sample deleted to pass bitbucket scanning | Matches `docker-compose.yml` exactly |
 | `TEST_DATABASE_URL` | `…/van_reservation_test` | Auto-created on first integration run |
 | `AUTH_MODE` | `stub` — the example's value, **not** a schema fallback | No CGS credentials needed. The schema has no default, so deleting the line stops the app booting rather than quietly selecting the stub |
 | `EMAIL_MODE` | `stub` | No AWS needed |

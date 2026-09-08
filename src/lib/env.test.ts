@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseEnv } from "@/lib/env";
 
 const valid = {
-  DATABASE_URL: "postgres://van:van@localhost:5433/van_reservation",
+  DATABASE_URL: "postgres/SAMPLE@localhost:SAMPLE/SAMPLE",
   SESSION_SECRET: "0123456789012345678901234567890123",
   AUTH_MODE: "stub",
   APP_URL: "http://localhost:3000",
