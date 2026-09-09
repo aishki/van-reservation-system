@@ -125,7 +125,7 @@ describe("requestInformationFromDraft", () => {
     expect(
       requestInformationFromDraft(standbyDraft(), ["VR-1045"], requestor)
         .rideMode,
-    ).toBe("Standby Van");
+    ).toBe("Dedicated Standby Van");
   });
 
   it("falls back to an em dash rather than an empty field", () => {

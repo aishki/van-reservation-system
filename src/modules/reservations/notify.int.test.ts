@@ -251,7 +251,7 @@ describe("loadRequestInformation", () => {
 
       const input = await loadRequestInformation(trx, id);
       expect(input.site).toBe("Manila");
-      expect(input.rideMode).toBe("Standby Van");
+      expect(input.rideMode).toBe("Dedicated Standby Van");
 
       const trip = input.trips[0];
       if (trip.mode !== "standby") throw new Error("expected a standby trip");

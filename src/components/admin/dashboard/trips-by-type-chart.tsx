@@ -12,7 +12,7 @@ import type { TypeSlice } from "@/modules/reservations/dashboard-metrics";
 const TYPE_CONFIG: ChartConfig = {
   count: { label: "Trips" },
   pickup: { label: "Pickup / Drop-Off", color: "var(--color-brand)" },
-  standby: { label: "Standby Van", color: "var(--color-primary)" },
+  standby: { label: "Dedicated Standby Van", color: "var(--color-primary)" },
 };
 
 /** "Trips by Type": a horizontal bar per ride mode, labelled with its count. */

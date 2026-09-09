@@ -85,7 +85,7 @@ interface TripDrawerProps {
 
 const APPROVAL = "Admin Approval";
 const DRIVER_AND_VAN = "Driver & Van";
-const COSTING = "Costing";
+const COSTING = "Additional Costing";
 
 /**
  * The value both selects use for manual entry. Not a uuid, so it can never
@@ -219,9 +219,10 @@ function parseCost(value: string): number | null | undefined {
  *   trip details changed, which is untrue. Assigning a driver is not editing
  *   the requestor's trip; it is the approval itself (FR-13).
  *
- * Costing (Vendor + Cost) renders for both pickup and standby: a pickup can
- * incur a rented-van cost just as a standby block can, and `costPhp`/`vendor`
- * are admin bookkeeping unrelated to which mode the requestor picked.
+ * Additional Costing (Vendor + Additional Cost) renders for both pickup and
+ * standby: a pickup can incur a rented-van cost just as a standby block can,
+ * and `costPhp`/`vendor` are admin bookkeeping unrelated to which mode the
+ * requestor picked.
  */
 export function TripDrawer({
   detail,
@@ -645,7 +646,9 @@ export function TripDrawer({
           </DrawerSection>
 
           <DrawerSection
-            label={standby ? "Trip (Standby Van)" : "Trip (Pickup / Drop-Off)"}
+            label={
+              standby ? "Trip (Dedicated Standby Van)" : "Trip (Pickup / Drop-Off)"
+            }
             open={isOpen("trip")}
             onToggle={(open) => setOpen("trip", open)}
           >
@@ -768,7 +771,7 @@ export function TripDrawer({
               lockedHint="Tick 'Trip details changed' to edit."
             />
             <DrawerField
-              label="Cost (PHP)"
+              label="Additional Cost (PHP)"
               value={draft.cost}
               error={showErrors ? costError : undefined}
               onChange={

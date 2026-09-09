@@ -121,7 +121,7 @@ describe("tripsByType", () => {
   it("reports zero shares for an empty set without dividing by zero", () => {
     expect(tripsByType([])).toEqual([
       { mode: "pickup", label: "Pickup / Drop-Off", count: 0, pct: 0 },
-      { mode: "standby", label: "Standby Van", count: 0, pct: 0 },
+      { mode: "standby", label: "Dedicated Standby Van", count: 0, pct: 0 },
     ]);
   });
 });

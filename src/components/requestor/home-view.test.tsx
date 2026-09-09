@@ -133,7 +133,9 @@ describe("HomeView", () => {
         .getAttribute("href"),
     ).toBe("/book?mode=pickup");
     expect(
-      screen.getByRole("link", { name: /Standby Van/ }).getAttribute("href"),
+      screen
+        .getByRole("link", { name: /Dedicated Standby Van/ })
+        .getAttribute("href"),
     ).toBe("/book?mode=standby");
   });
 

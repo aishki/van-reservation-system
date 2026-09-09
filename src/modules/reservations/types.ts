@@ -38,7 +38,7 @@ export const RIDE_MODE_LABELS: Record<
   { title: string; compact: string }
 > = {
   pickup: { title: "Pickup / Drop-Off", compact: "Pickup / drop-off" },
-  standby: { title: "Standby Van", compact: "Standby" },
+  standby: { title: "Dedicated Standby Van", compact: "Standby" },
 };
 
 /** Narrowing guard for values arriving from a URL or a form body. */

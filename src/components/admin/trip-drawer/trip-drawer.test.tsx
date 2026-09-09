@@ -584,7 +584,7 @@ describe("TripDrawer editing", () => {
   it("refuses a cost that is not a whole number of pesos", () => {
     setup(approvedStandby());
     fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.change(screen.getByRole("textbox", { name: "Cost (PHP)" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Additional Cost (PHP)" }), {
       target: { value: "6,400.50" },
     });
     save();
@@ -604,7 +604,7 @@ describe("TripDrawer editing", () => {
   it("refuses a non-numeric cost on a pickup too", () => {
     setup();
     fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.change(screen.getByRole("textbox", { name: "Cost (PHP)" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Additional Cost (PHP)" }), {
       target: { value: "not a number" },
     });
     save();
@@ -625,7 +625,7 @@ describe("TripDrawer editing", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Vendor" }), {
       target: { value: "Rent-A-Van Corp" },
     });
-    fireEvent.change(screen.getByRole("textbox", { name: "Cost (PHP)" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Additional Cost (PHP)" }), {
       target: { value: "3500" },
     });
     save();
@@ -643,12 +643,12 @@ describe("TripDrawer editing", () => {
 describe("TripDrawer per-mode sections", () => {
   it("shows costing for a standby booking", () => {
     setup(approvedStandby());
-    expect(screen.getByText("Costing")).toBeDefined();
+    expect(screen.getByText("Additional Costing")).toBeDefined();
   });
 
   it("shows costing for a pickup too", () => {
     setup();
-    expect(screen.getByText("Costing")).toBeDefined();
+    expect(screen.getByText("Additional Costing")).toBeDefined();
   });
 
   it("shows a drop-off point for a pickup and an end time for a standby", () => {
