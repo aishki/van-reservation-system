@@ -869,6 +869,32 @@ describe("TripDrawer assignment", () => {
     ).toBe(false);
   });
 
+  // `driverColumns` in write.ts strips everything but digits before checking
+  // this field is non-empty, so free text with no digits in it normalizes to
+  // "" server-side and used to come back as a 422 pointing at nothing.
+  it("refuses a rental mobile with no digits in it", async () => {
+    setup();
+    await chooseDriver("__others__");
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Rental Driver's Name" }),
+      { target: { value: "Rental Ramos" } },
+    );
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Rental Driver's Mobile Number" }),
+      { target: { value: "Reassign test" } },
+    );
+    save();
+
+    expect(
+      screen.getByText("Enter a mobile number, e.g. 0917 123 4567."),
+    ).toBeDefined();
+    expect(
+      apiFetchMock.mock.calls.some(([path]) =>
+        String(path).startsWith("/api/reservations/"),
+      ),
+    ).toBe(false);
+  });
+
   it("seeds both blocks from a stored rental assignment", async () => {
     setup(
       detailWith({

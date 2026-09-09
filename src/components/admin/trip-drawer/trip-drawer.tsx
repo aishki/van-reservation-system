@@ -38,6 +38,7 @@ import {
   saveLabelFor,
   validateDecisionInput,
 } from "@/modules/reservations/decision";
+import { normalizeMobile } from "@/modules/reservations/draft";
 import {
   ADMIN_RESERVATIONS_KEY,
   reservationDetailKey,
@@ -175,6 +176,15 @@ const COST_MESSAGE = "Enter a whole number of pesos, or leave it blank.";
  * as a schema parse error with nothing to point at.
  */
 const RENTAL_MESSAGE = "Required for a rental.";
+
+/**
+ * `driverColumns` in write.ts strips everything but digits from the rental
+ * mobile before checking it is non-empty, so typing free text into this
+ * field (nothing wrong with the shape — it is just text, not a phone number)
+ * normalizes to `""` server-side and comes back as a 422 pointing at no
+ * field at all. Checked here first, same reasoning as `COST_MESSAGE`.
+ */
+const RENTAL_MOBILE_MESSAGE = "Enter a mobile number, e.g. 0917 123 4567.";
 
 /**
  * `applyTripEdit` refuses a blank `details` with a generic
@@ -339,7 +349,7 @@ export function TripDrawer({
     tripEditable && draft.details.trim() === "" ? DETAILS_MESSAGE : undefined;
   const rentalErrors: RentalErrors = {
     name: blankRental(rentalDriver, draft.rentalDriverName),
-    mobile: blankRental(rentalDriver, draft.rentalDriverMobile),
+    mobile: rentalMobileError(rentalDriver, draft.rentalDriverMobile),
     plate: blankRental(rentalVan, draft.rentalPlate),
     carType: blankRental(rentalVan, draft.rentalCarType),
   };
@@ -1102,6 +1112,22 @@ function vanInputOf(draft: DetailDraft): VanInput | null {
 
 function blankRental(isRental: boolean, value: string): string | undefined {
   return isRental && value.trim() === "" ? RENTAL_MESSAGE : undefined;
+}
+
+/**
+ * The mobile field's own rule: blank is `RENTAL_MESSAGE`, same as every other
+ * rental field, but a value that is not blank yet has no digits in it (typed
+ * into the wrong field, or just placeholder text) gets its own message rather
+ * than sailing past this check and failing at the server with nothing to
+ * point at.
+ */
+function rentalMobileError(
+  isRental: boolean,
+  value: string,
+): string | undefined {
+  if (!isRental) return undefined;
+  if (value.trim() === "") return RENTAL_MESSAGE;
+  return normalizeMobile(value) === "" ? RENTAL_MOBILE_MESSAGE : undefined;
 }
 
 /** The draft's trip fields, in the shape `PATCH` takes, filtered by mode. */
