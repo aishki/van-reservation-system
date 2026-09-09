@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { FileMigrationProvider, Migrator } from "kysely/migration";
 import { Client } from "pg";
 import {
@@ -123,6 +124,13 @@ export default async function setup() {
       fs,
       path,
       migrationFolder: path.resolve("src/modules/db/migrations"),
+      // Without this, `FileMigrationProvider` falls back to
+      // `import(filePath)` with a raw OS path. On Windows that path starts
+      // with a drive letter (`C:\...`), which Node's loader misreads as a URL
+      // scheme (`ERR_UNSUPPORTED_ESM_URL_SCHEME`, "protocol 'c:'"). POSIX
+      // paths happen to double as valid URL paths, so this was never hit
+      // there — only import() on Windows needs the explicit conversion.
+      import: (filePath) => import(pathToFileURL(filePath).href),
     }),
     // Only when the URL pins a schema, because Kysely warns that this value can
     // never change once used. Without it the migrator's existence check matches
