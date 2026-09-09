@@ -288,6 +288,19 @@ export interface ReservationRow {
   firstAssignedAt?: string | null;
 }
 
+/**
+ * `ReservationRow` plus the two columns only the report export needs.
+ *
+ * Not folded into `ReservationRow` itself: vendor and cost are admin
+ * bookkeeping that no other list surface (master list, calendar, workload)
+ * reads, and every one of them would carry two unused columns on every row
+ * for nothing. `listReservationsForReport` is the one caller that wants them.
+ */
+export interface ReportRow extends ReservationRow {
+  vendor: string | null;
+  costPhp: number | null;
+}
+
 /** One named seat on a booking, as the wizard's passenger rows collect them. */
 export interface PassengerRef {
   domainId: string;

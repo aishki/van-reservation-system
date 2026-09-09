@@ -6,6 +6,7 @@ import {
   type AssignedDriver,
   type AssignedVan,
   CHANGED_TRIP_DETAILS_REMARK,
+  type ReportRow,
   type ReservationDetail,
   type ReservationRow,
   type RideMode,
@@ -200,6 +201,23 @@ export async function listReservations(
   const audience: Audience = "all" in scope ? "admin" : "requestor";
   const rows = await query.execute();
   return rows.map((row) => toRow(row, audience));
+}
+
+/**
+ * `listReservations({ all: true })` plus vendor/cost — the report export's own
+ * projection. Admin-only by construction: there is no `ReservationScope` case
+ * here that narrows to a requestor, because a requestor-facing surface has no
+ * reason to ever see this bookkeeping.
+ */
+export async function listReservationsForReport(
+  db: Kysely<DB>,
+): Promise<ReportRow[]> {
+  const rows = await listQuery(db).select(["r.vendor", "r.cost_php"]).execute();
+  return rows.map((row) => ({
+    ...toRow(row, "admin"),
+    vendor: row.vendor,
+    costPhp: row.cost_php,
+  }));
 }
 
 /**

@@ -231,12 +231,29 @@ export function monthsIn(rows: readonly ReservationRow[]): MonthOption[] {
   return [{ value: ALL, label: "All time", count: rows.length }, ...months];
 }
 
-export function filterByMonth(
-  rows: readonly ReservationRow[],
+export function filterByMonth<T extends ReservationRow>(
+  rows: readonly T[],
   month: string,
-): ReservationRow[] {
+): T[] {
   if (month === ALL) return [...rows];
   return rows.filter((row) => monthOf(row.startDate) === month);
+}
+
+/**
+ * Site + van type + month, together — the report's scope. Shared by the
+ * report form's live preview count and `/api/reports/export`, so the file a
+ * download produces can never disagree with the row count shown before it was
+ * clicked.
+ */
+export function filterReportScope<T extends ReservationRow>(
+  rows: readonly T[],
+  scope: { site: SiteFilter; mode: ModeFilter; month: string },
+): T[] {
+  return filterByMonth(rows, scope.month).filter((row) => {
+    if (scope.site !== ALL && row.site !== scope.site) return false;
+    if (scope.mode !== ALL && row.mode !== scope.mode) return false;
+    return true;
+  });
 }
 
 export interface QuarterOption {

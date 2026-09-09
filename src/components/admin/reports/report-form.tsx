@@ -14,12 +14,12 @@ import {
 import { cn } from "@/lib/utils";
 import {
   ALL,
-  filterByMonth,
+  filterReportScope,
   type ModeFilter,
   monthsIn,
   type SiteFilter,
 } from "@/modules/reservations/admin-filters";
-import { reportFileName, reservationCsv } from "@/modules/reservations/export";
+import { reportFileName } from "@/modules/reservations/export";
 import {
   type ReservationRow,
   RIDE_MODE_LABELS,
@@ -41,18 +41,18 @@ const BLANK: ReportScope = { site: ALL, mode: ALL, month: ALL };
 /**
  * Report generation (FR-16).
  *
- * Two departures from the design worth naming:
+ * One departure from the design worth naming: **the row count is real.** The
+ * design's preview card reads "237 rows" regardless of what is selected. Here
+ * the count is the number of rows the current scope actually matches, so an
+ * admin finds out that a combination is empty before downloading an empty
+ * file rather than after.
  *
- * - **The row count is real.** The design's preview card reads "237 rows"
- *   regardless of what is selected. Here the count is the number of rows the
- *   current scope actually matches, so an admin finds out that a combination is
- *   empty before downloading an empty file rather than after.
- * - **Download produces a file.** The design's button raises a toast saying the
- *   export runs through the API. A button that looks operable and does nothing
- *   reads as broken, and the data needed for the export is already on this
- *   page — so it writes a real CSV client-side. The `.xlsx` the design names
- *   comes from the server endpoint, which owns the formatting and the audit
- *   record; this is the same rows, in the format a browser can produce alone.
+ * The download itself is `GET /api/reports/export`, not a client-built file:
+ * that route re-applies this scope server-side (`filterReportScope`, the same
+ * function this preview count uses) rather than trusting whatever the client
+ * sends, and it owns the `.xlsx` — three sheets of live formulas against the
+ * data, not a flat client-side CSV. `matching.length` is a preview only; the
+ * server decides what actually leaves the building.
  *
  * The date range is a month picker derived from the data, not the design's
  * fixed quarter-plus-three-months control — see `monthsIn`.
@@ -60,9 +60,10 @@ const BLANK: ReportScope = { site: ALL, mode: ALL, month: ALL };
 export function ReportForm({ rows }: { rows: ReservationRow[] }) {
   const [scope, setScope] = useState<ReportScope>(BLANK);
   const [generated, setGenerated] = useState<ReportScope | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const months = monthsIn(rows);
-  const matching = matchRows(rows, scope);
+  const matching = filterReportScope(rows, scope);
 
   const set = (patch: Partial<ReportScope>) => {
     setScope((current) => ({ ...current, ...patch }));
@@ -72,23 +73,32 @@ export function ReportForm({ rows }: { rows: ReservationRow[] }) {
     setGenerated(null);
   };
 
-  const download = () => {
+  const download = async () => {
     if (generated === null) return;
-    const csv = reservationCsv(matchRows(rows, generated));
-    /**
-     * SEAM — replace with `GET /api/reports/export`, which owns the .xlsx
-     * formatting and writes the audit record. That handler re-applies the scope
-     * server-side: these three filters decide which rows leave the building, so
-     * trusting the client's selection would let a crafted request export
-     * anything.
-     */
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = reportFileName(generated);
-    link.click();
-    URL.revokeObjectURL(url);
+    setDownloading(true);
+    try {
+      const params = new URLSearchParams({
+        site: generated.site,
+        mode: generated.mode,
+        month: generated.month,
+      });
+      const response = await fetch(`/api/reports/export?${params}`);
+      if (!response.ok) {
+        toast.error("Couldn't generate the report.", {
+          description: "Try again in a moment.",
+        });
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = reportFileName(generated);
+      link.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -149,13 +159,13 @@ export function ReportForm({ rows }: { rows: ReservationRow[] }) {
             <button
               type="button"
               onClick={download}
-              disabled={matching.length === 0}
+              disabled={matching.length === 0 || downloading}
               className={cn(
                 "ml-auto cursor-pointer rounded-pill border-0 bg-brand px-6 py-3 text-[0.9375rem] font-semibold text-primary-foreground transition-[filter] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
                 "focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-primary",
               )}
             >
-              Download .csv
+              {downloading ? "Generating…" : "Download .xlsx"}
             </button>
           </div>
         )}
@@ -189,17 +199,6 @@ export function ReportForm({ rows }: { rows: ReservationRow[] }) {
       </div>
     </div>
   );
-}
-
-function matchRows(
-  rows: readonly ReservationRow[],
-  scope: ReportScope,
-): ReservationRow[] {
-  return filterByMonth(rows, scope.month).filter((row) => {
-    if (scope.site !== ALL && row.site !== scope.site) return false;
-    if (scope.mode !== ALL && row.mode !== scope.mode) return false;
-    return true;
-  });
 }
 
 /**
