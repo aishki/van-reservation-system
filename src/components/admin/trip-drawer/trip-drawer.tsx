@@ -241,6 +241,14 @@ export function TripDrawer({
   // false there — but deriving it rather than trusting that means a future edit
   // to the checkbox cannot quietly unlock an approved trip's fields.
   const tripEditable = mode === "decide" && editable;
+  // Vendor and cost are admin bookkeeping, not a requestor-entered trip
+  // field — see `CostingEdit` in write.ts, which is the reassign-mode's own
+  // door to them (a reassign refuses a full `TripEdit` outright, since an
+  // approved request's trip fields stay locked). A reassignment has no "trip
+  // details changed" checkbox to gate behind, but that checkbox was never
+  // what costing needed either, so it stays open there instead of locking
+  // behind a control this mode does not render.
+  const costEditable = mode === "reassign" || tripEditable;
   const [draft, setDraft] = useState<DetailDraft>(() => draftFrom(detail));
   const [showErrors, setShowErrors] = useState(false);
   const [serverErrors, setServerErrors] = useState<DecisionErrors>({});
@@ -324,7 +332,7 @@ export function TripDrawer({
     van: vanInput,
   });
   const costError =
-    tripEditable && parseCost(draft.cost) === undefined
+    costEditable && parseCost(draft.cost) === undefined
       ? COST_MESSAGE
       : undefined;
   const detailsError =
@@ -400,12 +408,18 @@ export function TripDrawer({
       return;
     }
 
-    // A reassign that moved neither side is a request the server answers as a
-    // no-op — refused here so the admin sees why instead of a success toast.
+    // A reassign that moved neither side AND left vendor/cost alone is a
+    // request the server would answer as a no-op — refused here so the admin
+    // sees why instead of a success toast. A cost-only edit through this
+    // mode is legitimate (see `costEditable` above) and must not trip this.
+    const costMoved =
+      (draft.vendor.trim() || null) !== detail.vendor ||
+      parseCost(draft.cost) !== detail.costPhp;
     if (
       mode === "reassign" &&
       !driverHasMoved(detail.assignedDriver, driverInput) &&
-      !vanHasMoved(detail.assignedVan, vanInput)
+      !vanHasMoved(detail.assignedVan, vanInput) &&
+      !costMoved
     ) {
       setServerErrors({ driverName: DECISION_MESSAGES.reassignNothing });
       setShowErrors(true);
@@ -426,8 +440,13 @@ export function TripDrawer({
           van: vanInput,
           // Null unless "trip details changed" is ticked, so an approval is
           // never recorded as an edit — a `modified` event is what flags
-          // "Changed Trip Details" to the next reviewer.
+          // "Changed Trip Details" to the next reviewer. A reassign sends
+          // `costing` instead (below): the server refuses a `trip` edit
+          // alongside a reassign outright (`writeModeFor` in write.ts), since
+          // an approved request's trip fields stay locked — only vendor/cost
+          // may still move.
           trip: tripEditable ? tripEditOf(draft, standby) : null,
+          costing: mode === "reassign" ? costingEditOf(draft) : null,
         }),
       });
 
@@ -647,7 +666,9 @@ export function TripDrawer({
 
           <DrawerSection
             label={
-              standby ? "Trip (Dedicated Standby Van)" : "Trip (Pickup / Drop-Off)"
+              standby
+                ? "Trip (Dedicated Standby Van)"
+                : "Trip (Pickup / Drop-Off)"
             }
             open={isOpen("trip")}
             onToggle={(open) => setOpen("trip", open)}
@@ -767,22 +788,30 @@ export function TripDrawer({
             <DrawerField
               label="Vendor"
               value={draft.vendor}
-              onChange={tripEditable ? (v) => set("vendor", v) : undefined}
-              lockedHint="Tick 'Trip details changed' to edit."
+              onChange={costEditable ? (v) => set("vendor", v) : undefined}
+              lockedHint={
+                mode === "reassign"
+                  ? undefined
+                  : "Tick 'Trip details changed' to edit."
+              }
             />
             <DrawerField
               label="Additional Cost (PHP)"
               value={draft.cost}
               error={showErrors ? costError : undefined}
               onChange={
-                tripEditable
+                costEditable
                   ? (v) => {
                       set("cost", v);
                       setShowErrors(false);
                     }
                   : undefined
               }
-              lockedHint="Tick 'Trip details changed' to edit."
+              lockedHint={
+                mode === "reassign"
+                  ? undefined
+                  : "Tick 'Trip details changed' to edit."
+              }
             />
           </DrawerSection>
 
@@ -1088,6 +1117,14 @@ function tripEditOf(draft: DetailDraft, standby: boolean) {
     endTime: standby ? draft.endTime : null,
     vendor: draft.vendor.trim() || null,
     // `costError` has already refused anything else by the time this runs.
+    costPhp: parseCost(draft.cost) ?? null,
+  };
+}
+
+/** The draft's vendor/cost alone, in the shape a reassign's `costing` takes. */
+function costingEditOf(draft: DetailDraft) {
+  return {
+    vendor: draft.vendor.trim() || null,
     costPhp: parseCost(draft.cost) ?? null,
   };
 }

@@ -87,7 +87,7 @@ export const WRITE_MESSAGES = {
   notFound: "Reservation not found.",
   notPending: "Only a request still awaiting approval can be changed.",
   reassignOnly:
-    "An approved request can only have its driver or van reassigned.",
+    "An approved request can only have its driver, van, vendor or cost changed.",
   notCancellable: "Only a pending or approved request can be cancelled.",
   versionConflict:
     "Someone else updated this request while you had it open. Reload and try again.",
@@ -456,6 +456,18 @@ export async function cancelReservation(
 // Admin decision
 // ---------------------------------------------------------------------------
 
+/**
+ * Vendor/cost, sent on their own during a reassignment — which cannot carry a
+ * `TripEdit` (see `writeModeFor`) since a reassign never unlocks the
+ * requestor's trip fields. `TripEdit` still carries both when a `full` save
+ * edits them alongside everything else; this is the narrower path for the
+ * one thing a reassign is also allowed to change.
+ */
+export interface CostingEdit {
+  vendor: string | null;
+  costPhp: number | null;
+}
+
 /** The trip fields the drawer unlocks behind "trip details changed". */
 export interface TripEdit {
   purpose: string;
@@ -492,6 +504,8 @@ export interface DecisionInput {
   driver: DriverInput | null;
   van: VanInput | null;
   trip: TripEdit | null;
+  /** Only meaningful (and only ever sent) alongside a reassign — see `CostingEdit`. */
+  costing: CostingEdit | null;
 }
 
 export interface DecisionOutcome {
@@ -538,7 +552,11 @@ function displayInstant(value: Date | null): string | null {
  * What this save is allowed to do to this row.
  *
  * `full`     — a pending request: decide it, edit its trip, assign either side.
- * `reassign` — an approved request: move the driver or the van, nothing else.
+ * `reassign` — an approved request: move the driver, move the van, and/or
+ *              update the vendor/cost — nothing else. The requestor's trip
+ *              fields (`TripEdit`) stay locked; `CostingEdit` is the narrower
+ *              door for the one piece of admin bookkeeping this mode may
+ *              still touch.
  * `null`     — refused.
  *
  * A reassign is recognised by what the request does NOT carry — no decision and
@@ -555,7 +573,7 @@ function writeModeFor(
     isReassignable(status) &&
     input.decision === null &&
     input.trip === null &&
-    (input.driver !== null || input.van !== null)
+    (input.driver !== null || input.van !== null || input.costing !== null)
   ) {
     return "reassign";
   }
@@ -574,6 +592,11 @@ export async function decideReservation(
   }
   if (input.trip !== null && input.trip.costPhp !== null) {
     if (input.trip.costPhp < 0) {
+      return err(invalid(WRITE_MESSAGES.costNegative));
+    }
+  }
+  if (input.costing !== null && input.costing.costPhp !== null) {
+    if (input.costing.costPhp < 0) {
       return err(invalid(WRITE_MESSAGES.costNegative));
     }
   }
@@ -677,6 +700,14 @@ export async function decideReservation(
       if ("failure" in applied) return err(applied.failure);
       Object.assign(update, applied.columns);
       changed = applied.changed;
+    }
+    // A reassign's own path to vendor/cost — `writeModeFor` refuses this
+    // alongside a `trip` edit, so the two never collide. Excluded from
+    // `changed` for the same reason `applyTripEdit` excludes them: admin
+    // bookkeeping, never "Changed Trip Details".
+    if (input.costing !== null) {
+      update.vendor = input.costing.vendor?.trim() || null;
+      update.cost_php = input.costing.costPhp;
     }
 
     // Each side sets its own columns and NULLS the other source's, so a driver

@@ -120,6 +120,17 @@ export const decisionInputSchema = z.object({
     })
     .nullable()
     .default(null),
+  /**
+   * Vendor/cost on their own — the one edit a reassign may carry alongside
+   * `trip: null`. See `CostingEdit` in write.ts.
+   */
+  costing: z
+    .object({
+      vendor: z.string().nullable().default(null),
+      costPhp: z.number().int().nullable().default(null),
+    })
+    .nullable()
+    .default(null),
 });
 
 /** A requestor's cancellation. The reason is optional; the schema requires one. */

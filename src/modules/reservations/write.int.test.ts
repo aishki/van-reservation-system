@@ -478,6 +478,7 @@ describe("cancelReservation", () => {
       driver: rosterDriver(driverId),
       van: rosterVan(vanId),
       trip: null,
+      costing: null,
     });
 
     const result = await cancelReservation(db, requestor, reference, "");
@@ -498,6 +499,7 @@ describe("cancelReservation", () => {
       driver: rosterDriver(driverId),
       van: rosterVan(vanId),
       trip: null,
+      costing: null,
     });
 
     const result = await cancelReservation(db, admin, reference, "");
@@ -514,6 +516,7 @@ describe("cancelReservation", () => {
       driver: null,
       van: null,
       trip: null,
+      costing: null,
     });
 
     const result = await cancelReservation(db, requestor, reference, "");
@@ -545,6 +548,7 @@ describe("decideReservation", () => {
     driver: null,
     van: null,
     trip: null,
+    costing: null,
     ...overrides,
   });
 
@@ -1286,6 +1290,7 @@ describe("decideReservation reassignment", () => {
     driver: null,
     van: null,
     trip: null,
+    costing: null,
     ...overrides,
   });
 
@@ -1299,6 +1304,7 @@ describe("decideReservation reassignment", () => {
       driver: rosterDriver(driverId),
       van: rosterVan(vanId),
       trip: null,
+      costing: null,
     });
     if (!result.ok) throw new Error(`approve failed: ${result.error.message}`);
     return reference;
@@ -1423,6 +1429,80 @@ describe("decideReservation reassignment", () => {
     expect(result.error.code).toBe("INVALID_TRANSITION");
   });
 
+  // Costing is the one piece of the requestor's trip a reassign may still
+  // touch — on its own, with neither side moving.
+  it("records a vendor and cost with neither side moving", async () => {
+    const reference = await approved();
+
+    const result = await decideReservation(
+      db,
+      admin,
+      reference,
+      decision({ costing: { vendor: "Metro Fleet Services", costPhp: 4200 } }),
+    );
+
+    expect(result.ok).toBe(true);
+    const row = await rowOf(reference);
+    expect(row.vendor).toBe("Metro Fleet Services");
+    expect(row.cost_php).toBe(4200);
+    // Still "approved" — a cost-only save is not a reassignment.
+    expect(result.ok && result.value.status).toBe("approved");
+  });
+
+  it("records a vendor and cost alongside a driver reassignment", async () => {
+    const reference = await approved();
+
+    const result = await decideReservation(
+      db,
+      admin,
+      reference,
+      decision({
+        driver: rosterDriver(secondDriverId),
+        costing: { vendor: "Metro Fleet Services", costPhp: 4200 },
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.status).toBe("approved_reassigned");
+    const row = await rowOf(reference);
+    expect(row.vendor).toBe("Metro Fleet Services");
+    expect(row.cost_php).toBe(4200);
+  });
+
+  // Vendor/cost are admin bookkeeping, never "Changed Trip Details" — the
+  // same rule `applyTripEdit` enforces for a `full` save's `trip.vendor`.
+  it("does not flag a cost-only reassign as a trip edit", async () => {
+    const reference = await approved();
+
+    await decideReservation(
+      db,
+      admin,
+      reference,
+      decision({ costing: { vendor: "Metro Fleet Services", costPhp: 4200 } }),
+    );
+
+    const types = (await eventsOf(reference)).map((e) => e.event_type);
+    expect(types).not.toContain("modified");
+  });
+
+  it("refuses a negative cost on a reassign", async () => {
+    const reference = await approved();
+
+    const result = await decideReservation(
+      db,
+      admin,
+      reference,
+      decision({ costing: { vendor: null, costPhp: -1 } }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.message).toBe(WRITE_MESSAGES.costNegative);
+    // Refused before the transaction, so nothing was written.
+    expect((await rowOf(reference)).cost_php).toBeNull();
+  });
+
   it("still refuses to approve a non-pending row", async () => {
     const reference = await approved();
 
@@ -1490,6 +1570,7 @@ describe("reservation_events.changes", () => {
     driver: null,
     van: null,
     trip: null,
+    costing: null,
     ...overrides,
   });
 
@@ -1762,6 +1843,7 @@ describe("decideReservation notifications", () => {
       driver: rosterDriver(driverId),
       van: rosterVan(vanId),
       trip: null,
+      costing: null,
     });
     expect(decided.ok).toBe(true);
 
@@ -1784,6 +1866,7 @@ describe("decideReservation notifications", () => {
       driver: null,
       van: null,
       trip: null,
+      costing: null,
     });
 
     const queued = await queuedFor(reference);
@@ -1807,6 +1890,7 @@ describe("decideReservation notifications", () => {
       driver: rosterDriver(driverId),
       van: null,
       trip: null,
+      costing: null,
     });
 
     const queued = await queuedFor(reference);
@@ -1829,6 +1913,7 @@ describe("decideReservation notifications", () => {
       driver: rosterDriver(driverId),
       van: null,
       trip: null,
+      costing: null,
     });
 
     const second = await rowOf(reference);
@@ -1839,6 +1924,7 @@ describe("decideReservation notifications", () => {
       driver: rosterDriver(secondDriverId),
       van: null,
       trip: null,
+      costing: null,
     });
 
     const driverMail = (await queuedFor(reference)).filter(
@@ -1861,6 +1947,7 @@ describe("decideReservation notifications", () => {
       driver: null,
       van: rosterVan(vanId),
       trip: null,
+      costing: null,
     });
 
     const queued = await queuedFor(reference);
@@ -1892,6 +1979,7 @@ describe("decideReservation notifications", () => {
       driver: rosterDriver(driverId),
       van: null,
       trip: null,
+      costing: null,
     });
     await decideReservation(db, admin, reference, {
       version: 2,
@@ -1900,6 +1988,7 @@ describe("decideReservation notifications", () => {
       driver: null,
       van: rosterVan(vanId),
       trip: null,
+      costing: null,
     });
 
     const mail = (await queuedFor(reference)).filter(
@@ -1922,6 +2011,7 @@ describe("decideReservation notifications", () => {
       driver: null,
       van: null,
       trip: null,
+      costing: null,
     });
 
     // A field edit is not news. Without the guard this would mail a rejection
@@ -1996,6 +2086,7 @@ describe("cancelReservation notifications", () => {
       driver: rosterDriver(driverId),
       van: rosterVan(vanId),
       trip: null,
+      costing: null,
     });
     return { reference, actingAdmin };
   }

@@ -306,6 +306,8 @@ describe("TripDrawer approval", () => {
       van: { source: "roster", vanId: "van-van-03" },
       // Not ticked, so an approval is never recorded as a trip edit.
       trip: null,
+      // Decide mode only ever fills `trip`; `costing` is the reassign-only door.
+      costing: null,
     });
   });
 
@@ -584,9 +586,12 @@ describe("TripDrawer editing", () => {
   it("refuses a cost that is not a whole number of pesos", () => {
     setup(approvedStandby());
     fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.change(screen.getByRole("textbox", { name: "Additional Cost (PHP)" }), {
-      target: { value: "6,400.50" },
-    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Additional Cost (PHP)" }),
+      {
+        target: { value: "6,400.50" },
+      },
+    );
     save();
 
     expect(
@@ -604,9 +609,12 @@ describe("TripDrawer editing", () => {
   it("refuses a non-numeric cost on a pickup too", () => {
     setup();
     fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.change(screen.getByRole("textbox", { name: "Additional Cost (PHP)" }), {
-      target: { value: "not a number" },
-    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Additional Cost (PHP)" }),
+      {
+        target: { value: "not a number" },
+      },
+    );
     save();
 
     expect(
@@ -625,9 +633,12 @@ describe("TripDrawer editing", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Vendor" }), {
       target: { value: "Rent-A-Van Corp" },
     });
-    fireEvent.change(screen.getByRole("textbox", { name: "Additional Cost (PHP)" }), {
-      target: { value: "3500" },
-    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Additional Cost (PHP)" }),
+      {
+        target: { value: "3500" },
+      },
+    );
     save();
 
     await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
@@ -986,6 +997,21 @@ describe("TripDrawer reassign mode", () => {
     );
   });
 
+  // Vendor and cost are admin bookkeeping, not a requestor-entered trip
+  // field, so a reassignment — which has no "trip details changed" checkbox
+  // at all — still leaves them open rather than locking behind a control
+  // this mode never renders.
+  it("leaves vendor and cost editable with no unlock", () => {
+    reassigning();
+    expect(screen.getByRole("textbox", { name: "Vendor" })).toHaveProperty(
+      "readOnly",
+      false,
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Additional Cost (PHP)" }),
+    ).toHaveProperty("readOnly", false);
+  });
+
   it("names the consequence on the save button", () => {
     reassigning();
     expect(
@@ -1006,8 +1032,10 @@ describe("TripDrawer reassign mode", () => {
   });
 
   // A DIFFERENT driver than REQ-1038 already carries — picking the assigned one
-  // is the no-op the guard above refuses.
-  it("sends decision: null and trip: null", async () => {
+  // is the no-op the guard above refuses. `trip` stays null (the server
+  // refuses a `trip` edit alongside a reassign outright); the request's
+  // CURRENT vendor/cost rides along unchanged on `costing` instead.
+  it("sends decision: null, trip: null, and the unchanged vendor/cost as costing", async () => {
     reassigning();
     await chooseDriver("driver-villanueva-rey");
     save();
@@ -1016,10 +1044,33 @@ describe("TripDrawer reassign mode", () => {
       const body = patchBody();
       expect(body.decision).toBeNull();
       expect(body.trip).toBeNull();
+      expect(body.costing).toEqual({
+        vendor: "Metro Fleet Services",
+        costPhp: 6400,
+      });
       expect(body.driver).toEqual({
         source: "roster",
         driverId: "driver-villanueva-rey",
       });
     });
+  });
+
+  // Costing is the one thing a reassignment can legitimately change on its
+  // own — the no-op guard above must not treat this as "nothing to do" just
+  // because neither side moved.
+  it("does not refuse a save that only changed the cost", async () => {
+    reassigning();
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Additional Cost (PHP)" }),
+      { target: { value: "7200" } },
+    );
+    save();
+
+    await vi.waitFor(() => {
+      const body = patchBody();
+      expect(body.trip).toBeNull();
+      expect(body.costing).toMatchObject({ costPhp: 7200 });
+    });
+    expect(screen.queryByText(DECISION_MESSAGES.reassignNothing)).toBeNull();
   });
 });

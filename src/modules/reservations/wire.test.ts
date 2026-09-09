@@ -114,6 +114,7 @@ describe("decisionInputSchema", () => {
       driver: null,
       van: null,
       trip: null,
+      costing: null,
     });
   });
 
