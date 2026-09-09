@@ -211,16 +211,17 @@ function parseCost(value: string): number | null | undefined {
  * Positioned as a right-hand slide-over by resetting the element's default
  * centring (`m-0 ml-auto`) rather than by wrapping it in a flex container.
  *
- * Two departures from the design worth naming:
+ * One departure from the design worth naming:
  *
  * - **Driver assignment is not gated behind the "trip details changed"
  *   checkbox.** The design locks every field, including Driver, until that box
  *   is ticked — so approving a request would require first declaring that its
  *   trip details changed, which is untrue. Assigning a driver is not editing
  *   the requestor's trip; it is the approval itself (FR-13).
- * - **Costing only renders for a standby booking.** The design always shows it,
- *   filled with "N/A" for a pickup. A section of N/A is noise in a panel an
- *   admin scans under time pressure.
+ *
+ * Costing (Vendor + Cost) renders for both pickup and standby: a pickup can
+ * incur a rented-van cost just as a standby block can, and `costPhp`/`vendor`
+ * are admin bookkeeping unrelated to which mode the requestor picked.
  */
 export function TripDrawer({
   detail,
@@ -322,7 +323,7 @@ export function TripDrawer({
     van: vanInput,
   });
   const costError =
-    standby && tripEditable && parseCost(draft.cost) === undefined
+    tripEditable && parseCost(draft.cost) === undefined
       ? COST_MESSAGE
       : undefined;
   const detailsError =
@@ -755,34 +756,32 @@ export function TripDrawer({
             </DrawerReadout>
           </DrawerSection>
 
-          {standby && (
-            <DrawerSection
-              label={COSTING}
-              open={isOpen(COSTING)}
-              onToggle={(open) => setOpen(COSTING, open)}
-            >
-              <DrawerField
-                label="Vendor"
-                value={draft.vendor}
-                onChange={tripEditable ? (v) => set("vendor", v) : undefined}
-                lockedHint="Tick 'Trip details changed' to edit."
-              />
-              <DrawerField
-                label="Cost (PHP)"
-                value={draft.cost}
-                error={showErrors ? costError : undefined}
-                onChange={
-                  tripEditable
-                    ? (v) => {
-                        set("cost", v);
-                        setShowErrors(false);
-                      }
-                    : undefined
-                }
-                lockedHint="Tick 'Trip details changed' to edit."
-              />
-            </DrawerSection>
-          )}
+          <DrawerSection
+            label={COSTING}
+            open={isOpen(COSTING)}
+            onToggle={(open) => setOpen(COSTING, open)}
+          >
+            <DrawerField
+              label="Vendor"
+              value={draft.vendor}
+              onChange={tripEditable ? (v) => set("vendor", v) : undefined}
+              lockedHint="Tick 'Trip details changed' to edit."
+            />
+            <DrawerField
+              label="Cost (PHP)"
+              value={draft.cost}
+              error={showErrors ? costError : undefined}
+              onChange={
+                tripEditable
+                  ? (v) => {
+                      set("cost", v);
+                      setShowErrors(false);
+                    }
+                  : undefined
+              }
+              lockedHint="Tick 'Trip details changed' to edit."
+            />
+          </DrawerSection>
 
           <DrawerSection
             label={DRIVER_AND_VAN}
@@ -1084,9 +1083,9 @@ function tripEditOf(draft: DetailDraft, standby: boolean) {
     startTime: draft.startTime,
     endDate: standby ? draft.endDate : null,
     endTime: standby ? draft.endTime : null,
-    vendor: standby ? draft.vendor.trim() || null : null,
+    vendor: draft.vendor.trim() || null,
     // `costError` has already refused anything else by the time this runs.
-    costPhp: standby ? (parseCost(draft.cost) ?? null) : null,
+    costPhp: parseCost(draft.cost) ?? null,
   };
 }
 

@@ -199,11 +199,23 @@ describe("reservations CHECK constraints", () => {
       ...pickupRow("VR-2026-900011"),
       approving_tower_head: "Abanto, Norlyn",
     });
-    await expectRejected({ ...pickupRow("VR-2026-900012"), cost_php: 5000 });
     await expectRejected({
       ...pickupRow("VR-2026-900013"),
       end_at: new Date("2026-08-11T09:00:00Z"),
     });
+  });
+
+  // Vendor and cost are admin bookkeeping, not part of the mode shape — a
+  // rented van can back a pickup trip just as it can a standby block.
+  it("accepts a pickup with a vendor and a cost", async () => {
+    await db
+      .insertInto("reservations")
+      .values({
+        ...pickupRow("VR-2026-900012"),
+        vendor: "Prime Transport",
+        cost_php: 5000,
+      })
+      .execute();
   });
 
   it("rejects a standby without end_at or tower head, or with a dropoff", async () => {
@@ -220,6 +232,10 @@ describe("reservations CHECK constraints", () => {
 
   it("rejects a negative cost", async () => {
     await expectRejected({ ...standbyRow("VR-2026-900017"), cost_php: -1 });
+    await expectRejected({
+      ...pickupRow("VR-2026-900043"),
+      cost_php: -1,
+    });
   });
 
   it("rejects a duplicate reference_no", async () => {

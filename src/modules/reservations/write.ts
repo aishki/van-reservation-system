@@ -466,7 +466,7 @@ export interface TripEdit {
   startTime: string;
   endDate: string | null;
   endTime: string | null;
-  /** Standby only — ignored on a pickup, which the schema forbids costing. */
+  /** Admin bookkeeping, legal on either mode. */
   vendor: string | null;
   costPhp: number | null;
 }
@@ -843,10 +843,10 @@ interface CurrentTrip {
  * fields actually moved.
  *
  * Mode decides which columns are even writable: the mode-shape CHECK constraint
- * forbids an end, a Tower Head, a vendor and a cost on a pickup, and forbids a
- * dropoff on a standby. Filtering here rather than trusting the body means a
- * client that sends the wrong half gets those fields ignored instead of a
- * constraint violation surfacing as a 500.
+ * forbids an end and a Tower Head on a pickup, and forbids a dropoff on a
+ * standby. Vendor and cost are legal on either mode. Filtering here rather
+ * than trusting the body means a client that sends the wrong half gets those
+ * fields ignored instead of a constraint violation surfacing as a 500.
  */
 function applyTripEdit(
   current: CurrentTrip,
@@ -899,11 +899,9 @@ function applyTripEdit(
     dropoff_location: dropoff,
     start_at: startAt,
     end_at: endAt,
+    vendor: edit.vendor === null ? null : edit.vendor.trim() || null,
+    cost_php: edit.costPhp,
   };
-  if (standby) {
-    columns.vendor = edit.vendor === null ? null : edit.vendor.trim() || null;
-    columns.cost_php = edit.costPhp;
-  }
 
   // Only the requestor's fields count as a modification. Vendor and cost are
   // admin bookkeeping the requestor never entered, so filling them in must not

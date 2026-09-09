@@ -889,6 +889,25 @@ describe("decideReservation", () => {
     expect(events.map((e) => e.event_type)).toEqual(["submitted"]);
   });
 
+  it("records a vendor and cost on a pickup, not just a standby", async () => {
+    const reference = await submitted();
+
+    await decideReservation(
+      db,
+      admin,
+      reference,
+      decision({
+        trip: tripEdit({ vendor: "Prime Transport", costPhp: 3500 }),
+      }),
+    );
+
+    const row = await rowOf(reference);
+    expect(row.vendor).toBe("Prime Transport");
+    expect(row.cost_php).toBe(3500);
+    const events = await eventsOf(reference);
+    expect(events.map((e) => e.event_type)).toEqual(["submitted"]);
+  });
+
   it("records a reassignment separately, so the SLA clock does not move", async () => {
     const reference = await submitted();
 

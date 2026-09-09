@@ -389,9 +389,12 @@ export interface ReservationDetail extends ReservationRow {
   dropoffPoint: string | null;
   /** Standby only; a block may cross midnight. */
   endDate: string | null;
-  /** Admin-owned, standby only — the van hire is booked against a vendor. */
+  /** Admin-owned, either mode — the van hire is booked against a vendor. */
   vendor: string | null;
-  /** Whole pesos. A number, not a pre-formatted string, so it can be summed. */
+  /**
+   * Admin-owned, either mode. Whole pesos. A number, not a pre-formatted
+   * string, so it can be summed.
+   */
   costPhp: number | null;
   /**
    * Who is driving, roster or rental — null until Admin Support assigns.

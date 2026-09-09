@@ -493,6 +493,7 @@ describe("TripDrawer editing", () => {
         dropoffPoint: "GLS Building",
         // Pickup-only: the schema forbids a standby window on this row.
         endDate: null,
+        // Costing is legal on a pickup too, but nothing was typed into it.
         costPhp: null,
       }),
     });
@@ -597,6 +598,46 @@ describe("TripDrawer editing", () => {
       ),
     ).toBe(false);
   });
+
+  // Costing is admin bookkeeping, not mode-dependent — a rented van can back a
+  // pickup trip just as it can a standby block.
+  it("refuses a non-numeric cost on a pickup too", () => {
+    setup();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.change(screen.getByRole("textbox", { name: "Cost (PHP)" }), {
+      target: { value: "not a number" },
+    });
+    save();
+
+    expect(
+      screen.getByText("Enter a whole number of pesos, or leave it blank."),
+    ).toBeDefined();
+    expect(
+      apiFetchMock.mock.calls.some(([path]) =>
+        String(path).startsWith("/api/reservations/"),
+      ),
+    ).toBe(false);
+  });
+
+  it("sends a vendor and cost entered on a pickup", async () => {
+    const { onClose } = setup();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.change(screen.getByRole("textbox", { name: "Vendor" }), {
+      target: { value: "Rent-A-Van Corp" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Cost (PHP)" }), {
+      target: { value: "3500" },
+    });
+    save();
+
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(patchBody()).toMatchObject({
+      trip: expect.objectContaining({
+        vendor: "Rent-A-Van Corp",
+        costPhp: 3500,
+      }),
+    });
+  });
 });
 
 describe("TripDrawer per-mode sections", () => {
@@ -605,11 +646,9 @@ describe("TripDrawer per-mode sections", () => {
     expect(screen.getByText("Costing")).toBeDefined();
   });
 
-  // The design always renders it, filled with "N/A" — noise in a panel an admin
-  // scans under time pressure.
-  it("omits costing for a pickup", () => {
+  it("shows costing for a pickup too", () => {
     setup();
-    expect(screen.queryByText("Costing")).toBeNull();
+    expect(screen.getByText("Costing")).toBeDefined();
   });
 
   it("shows a drop-off point for a pickup and an end time for a standby", () => {
