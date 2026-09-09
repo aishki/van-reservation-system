@@ -6,3 +6,9 @@ ignoredBuiltDependencies:
 packages:
   - "apps/*"
   - "packages/*"
+overrides:
+  # exceljs pulls in jszip@^3.10.1, which resolves to whatever the newest
+  # matching publish is. pnpm's supply-chain minimum-release-age check
+  # (default on pnpm 10+) refuses a package published too recently, so this
+  # pins to an established prior patch instead of riding the range's tip.
+  jszip: 3.10.1
