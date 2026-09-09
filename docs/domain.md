@@ -111,9 +111,6 @@ Today two people hold it, by seed: **Ruwi Joy Eribal** (`AG80389`) and
 > [`admins/repo.ts:32-34`](../src/modules/admins/repo.ts). If the restriction
 > needs to be structural, that is a code change, not a documentation one.
 
-One seeded row, **Aishki Hyamero** (`AJ40001`), is a test account and not a
-member of staff. Leave it alone.
-
 ### Capability is re-read from the database, every request
 
 `gate()` ([`src/app/api/admins/gate.ts:27-49`](../src/app/api/admins/gate.ts))

@@ -159,7 +159,7 @@ a requestor.
 | `AM03146` | Jezreel Mariz Gromia | `admin_support` | iloilo | no |
 | `AL95338` | Ivy Balandra | `admin_support` | iloilo | no |
 | `AH44229` | Angel Grace Mateo | `admin_support` | iloilo | no |
-| `AJ40001` | Aishki Hyamero | `admin_support` | all | no — **test account, not staff** |
+| `AG78121` | Adrian Esguerra | `admin_support` | all | no |
 | `AB12345` | Juan Dela Cruz | `associate` | — | — |
 | `CD67890` | Maria Santos | `associate` | — | — |
 

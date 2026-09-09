@@ -62,9 +62,9 @@ const DEV_IDENTITIES: Readonly<Record<string, DevIdentityFixture>> =
       name: "Angel Grace Mateo",
       email: "angelgrace.mateo@carelon.com",
     },
-    AJ40001: {
-      name: "Aishki Hyamero",
-      email: "arielle.hyamero@carelon.com",
+    AG78121: {
+      name: "Adrian Esguerra",
+      email: "adrian.esguerra@carelon.com",
     },
 
     // Non-admin associates, fixture-only — absent from the whitelist, so

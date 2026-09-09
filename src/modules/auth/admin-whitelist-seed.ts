@@ -102,11 +102,9 @@ export const ADMIN_WHITELIST_SEED: readonly AdminSeedRow[] = [
     super_admin: true,
   },
   {
-    // A test admin, not a member of staff. `site: "all"` so it receives every
-    // site's notifications, which is the point of a test account.
-    full_name: "Aishki Hyamero",
-    email: "arielle.hyamero@carelon.com",
-    domain_id: "AJ40001",
+    full_name: "Adrian Esguerra",
+    email: "adrian.esguerra@carelon.com",
+    domain_id: "AG78121",
     site: "all",
     super_admin: false,
   },

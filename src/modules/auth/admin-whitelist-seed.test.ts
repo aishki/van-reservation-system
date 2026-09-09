@@ -3,7 +3,7 @@ import { ADMIN_WHITELIST_SEED } from "@/modules/auth/admin-whitelist-seed";
 import { resolveDevIdentity } from "@/modules/auth/dev-identities";
 
 describe("ADMIN_WHITELIST_SEED", () => {
-  it("contains the client's eight admins plus one test account", () => {
+  it("contains the client's nine admins", () => {
     expect(ADMIN_WHITELIST_SEED).toHaveLength(9);
   });
 
@@ -64,19 +64,17 @@ describe("ADMIN_WHITELIST_SEED", () => {
       expect(holders.sort()).toEqual(["AG80389", "AM65108"]);
     });
 
-    // AJ40001 / arielle.hyamero@ is a TEST account, not staff, and its address is
-    // confusingly close to Arielle Jimera's. It must not be privileged.
-    it("does not grant the flag to the test account", () => {
-      const test = ADMIN_WHITELIST_SEED.find(
-        (row) => row.domain_id === "AJ40001",
-      );
-      expect(test?.super_admin).toBe(false);
-    });
-
     it("gives every row an explicit flag, so none is privileged by omission", () => {
       for (const row of ADMIN_WHITELIST_SEED) {
         expect(typeof row.super_admin).toBe("boolean");
       }
+    });
+
+    it("does not grant the flag to Adrian Esguerra", () => {
+      const row = ADMIN_WHITELIST_SEED.find(
+        (candidate) => candidate.domain_id === "AG78121",
+      );
+      expect(row?.super_admin).toBe(false);
     });
   });
 });
