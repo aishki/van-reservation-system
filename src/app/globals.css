@@ -236,7 +236,19 @@
   --radius: var(--radius-field);
 }
 
+/* A wide admin table sits inside its own `overflow-x-auto` wrapper (see
+   `request-table.tsx`), but a block descendant's layout overflow still bleeds
+   through every ancestor up to the root even when a nested container clips
+   it — Blink keeps counting it toward the root scrollable area. Both `html`
+   and `body` need the cutoff: either alone still leaves the other scrollable.
+   Without this, that overflow surfaces as blank space you can scroll to on
+   the page itself, not just inside the table. */
+html {
+  overflow-x: hidden;
+}
+
 body {
+  overflow-x: hidden;
   background: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
