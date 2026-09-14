@@ -181,8 +181,9 @@ function pickupTrip(overrides: Record<string, string> = {}) {
     details: "Airport transfer for the site visit.",
     towerHead: "",
     passengers: [
-      { domainId: "aj29104", name: " Jimera, Arielle " },
-      { domainId: "AM10394", name: "Dizon, Marco" },
+      { name: " Jimera, Arielle ", email: "  arielle.jimera@carelon.com  " },
+      // No email — an external client passenger, not a data-entry gap.
+      { name: "Dizon, Marco", email: "" },
     ],
     pickupDate: "2026-09-10",
     pickupTime: "06:30",
@@ -201,7 +202,9 @@ function standbyTrip() {
     purpose: "Others",
     details: "Standby coverage for the offsite.",
     towerHead: "Abanto, Norlyn",
-    passengers: [{ domainId: "AJ29104", name: "Jimera, Arielle" }],
+    passengers: [
+      { name: "Jimera, Arielle", email: "arielle.jimera@carelon.com" },
+    ],
     pickupDate: "",
     pickupTime: "",
     dropoffPoint: "",
@@ -295,18 +298,24 @@ describe("submitBooking", () => {
     expect(row.approving_tower_head).toBeNull();
     expect(row.version).toBe(1);
     // Normalised on the way in: the spaced input the mobile field accepts is
-    // stored as digits, and a lower-cased Domain ID is stored upper.
+    // stored as digits.
     expect(row.requestor_mobile).toBe("09171112222");
 
     const passengers = await db
       .selectFrom("reservation_passengers")
-      .select(["domain_id", "name", "position"])
+      .select(["name", "email", "position"])
       .where("reservation_id", "=", row.id)
       .orderBy("position", "asc")
       .execute();
     expect(passengers).toEqual([
-      { domain_id: "AJ29104", name: "Jimera, Arielle", position: 1 },
-      { domain_id: "AM10394", name: "Dizon, Marco", position: 2 },
+      // Both name and email are trimmed on the way in.
+      {
+        name: "Jimera, Arielle",
+        email: "arielle.jimera@carelon.com",
+        position: 1,
+      },
+      // An empty email is stored as null, not "".
+      { name: "Dizon, Marco", email: null, position: 2 },
     ]);
 
     expect(await eventsOf("VR-2026-000001")).toEqual([

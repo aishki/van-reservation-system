@@ -41,7 +41,9 @@ function pickupDraft() {
       {
         ...blankTrip(),
         purpose: "Travel-Related (Airport Transfers)",
-        passengers: [{ domainId: "AJ29104", name: "Jimera, Arielle" }],
+        passengers: [
+          { name: "Jimera, Arielle", email: "arielle.jimera@carelon.com" },
+        ],
         pickupDate: "2026-09-01",
         pickupTime: "06:30",
         pickupPoint: "GLS Tower lobby",

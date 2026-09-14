@@ -78,8 +78,8 @@ const trips: RequestTrip[] = [
     pickupPoint: "CGS Office Iloilo",
     dropoffPoint: "Smallville Complex",
     passengers: [
-      { name: "Arielle Jimera", domainId: "AM65108" },
-      { name: "Marco Dizon", domainId: "AM10394" },
+      { name: "Arielle Jimera", email: "arielle.jimera@carelon.com" },
+      { name: "Marco Dizon", email: "marco.dizon@carelon.com" },
     ],
   },
   {
@@ -90,7 +90,8 @@ const trips: RequestTrip[] = [
     pickup: "Tue, 11 Aug 2026, 6:00 AM",
     pickupPoint: "CGS Office Iloilo",
     dropoffPoint: "Megaworld Boulevard",
-    passengers: [{ name: "Kaye Reyes", domainId: "AK47281" }],
+    // No email — an external client passenger, not a data-entry gap.
+    passengers: [{ name: "Kaye Reyes", email: null }],
   },
   {
     mode: "pickup",
@@ -101,9 +102,9 @@ const trips: RequestTrip[] = [
     pickupPoint: "CGS Office Iloilo",
     dropoffPoint: "Iloilo International Airport",
     passengers: [
-      { name: "Liza Salcedo", domainId: "AL55210" },
-      { name: "Marco Dizon", domainId: "AM10394" },
-      { name: "Kaye Reyes", domainId: "AK47281" },
+      { name: "Liza Salcedo", email: "liza.salcedo@carelon.com" },
+      { name: "Marco Dizon", email: "marco.dizon@carelon.com" },
+      { name: "Kaye Reyes", email: null },
     ],
   },
 ];
@@ -117,7 +118,7 @@ const standbyTrip: RequestTrip = {
   window: "Mon, 17 Aug 2026 → Wed, 19 Aug 2026",
   hours: "6:00 AM – 6:00 PM",
   reportingPoint: "CGS Tower Manila lobby",
-  passengers: [{ name: "Arielle Jimera", domainId: "AM65108" }],
+  passengers: [{ name: "Arielle Jimera", email: "arielle.jimera@carelon.com" }],
 };
 
 const submittedMany: BookingSubmittedInput = {

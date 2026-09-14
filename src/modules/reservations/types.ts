@@ -301,10 +301,20 @@ export interface ReportRow extends ReservationRow {
   costPhp: number | null;
 }
 
-/** One named seat on a booking, as the wizard's passenger rows collect them. */
+/**
+ * One named seat on a booking, as the wizard's passenger rows collect them.
+ *
+ * `domainId` and `email` are both nullable, but for different reasons: a
+ * reservation from before manual entry replaced the Domain ID lookup always
+ * has a `domainId` and never an `email`; one submitted since always has the
+ * reverse (an `email` only when the requestor typed one — many passengers are
+ * external clients). A future name-search feature is expected to populate
+ * both again from a matched directory record.
+ */
 export interface PassengerRef {
-  domainId: string;
+  domainId: string | null;
   name: string;
+  email: string | null;
 }
 
 /**

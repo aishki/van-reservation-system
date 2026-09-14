@@ -13,7 +13,7 @@ const trip: RequestTrip = {
   pickup: "Aug 10 2026 · 7:30 AM",
   pickupPoint: "Smallville",
   dropoffPoint: "CGS Office",
-  passengers: [{ name: "Juan Cruz", domainId: "AB12345" }],
+  passengers: [{ name: "Juan Cruz", email: "juan.cruz@carelon.com" }],
 };
 
 const common = {
@@ -88,7 +88,11 @@ describe("renderBookingStatusChange", () => {
   it("carries the request information for every status", async () => {
     for (const input of [approved, rejected, cancelled]) {
       const { html } = await renderBookingStatusChange(input);
-      for (const value of ["VR-1042", "Iloilo", "Juan Cruz (AB12345)"]) {
+      for (const value of [
+        "VR-1042",
+        "Iloilo",
+        "Juan Cruz (juan.cruz@carelon.com)",
+      ]) {
         expect(html).toContain(value);
       }
     }

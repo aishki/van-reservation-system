@@ -179,14 +179,15 @@ async function seedReservation(
     .values([
       {
         reservation_id: reservation.id,
-        domain_id: "AB12345",
         name: "Juan Cruz",
+        email: "juan.cruz@carelon.com",
         position: 1,
       },
       {
         reservation_id: reservation.id,
-        domain_id: "AC67890",
         name: "Maria Reyes",
+        // No email — an external client passenger, not a data-entry gap.
+        email: null,
         position: 0,
       },
     ])
@@ -230,8 +231,8 @@ describe("loadRequestInformation", () => {
         await seedReservation(trx),
       );
       expect(input.trips[0].passengers).toEqual([
-        { name: "Maria Reyes", domainId: "AC67890" },
-        { name: "Juan Cruz", domainId: "AB12345" },
+        { name: "Maria Reyes", email: null },
+        { name: "Juan Cruz", email: "juan.cruz@carelon.com" },
       ]);
     });
   });

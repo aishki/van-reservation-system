@@ -41,7 +41,17 @@ const text = z.string().min(1);
 // `text` once no pre-deploy row can remain in the outbox.
 const tripDetails = text.catch(EM_DASH);
 
-const passenger = z.object({ name: text, domainId: text });
+/**
+ * `email` degrades to `null` rather than failing the row: a
+ * `notification_outbox` row queued before manual entry replaced the Domain ID
+ * lookup has no `email` field at all (it has `domainId` instead, now just an
+ * unrecognized key `z.object` strips), and INVALID_PAYLOAD is permanent — the
+ * same reasoning as `tripDetails` and `driver.carType` above.
+ */
+const passenger = z.object({
+  name: text,
+  email: z.string().nullable().catch(null),
+});
 
 /**
  * Absent until Admin Support assigns a van. `carType` is additionally

@@ -10,7 +10,7 @@ const trip = {
   pickup: "Aug 10 2026 · 7:30 AM",
   pickupPoint: "Smallville",
   dropoffPoint: "CGS Office",
-  passengers: [{ name: "Juan Cruz", domainId: "AB12345" }],
+  passengers: [{ name: "Juan Cruz", email: "juan.cruz@carelon.com" }],
 };
 
 const card = {

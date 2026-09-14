@@ -22,8 +22,13 @@ function pickupDraft(): BookingDraft {
       pickupPoint: "Smallville",
       dropoffPoint: "CGS Office",
       passengers: [
-        { ...blankPassenger(), domainId: "AB12345", name: "Juan Cruz" },
-        { ...blankPassenger(), domainId: "AC67890", name: "Maria Reyes" },
+        {
+          ...blankPassenger(),
+          name: "Juan Cruz",
+          email: "juan.cruz@carelon.com",
+        },
+        // No email — an external client passenger, not a data-entry gap.
+        { ...blankPassenger(), name: "Maria Reyes" },
       ],
     },
   ];
@@ -45,7 +50,11 @@ function standbyDraft(): BookingDraft {
       endTime: "18:00",
       pickupPoint: "CGS Tower lobby",
       passengers: [
-        { ...blankPassenger(), domainId: "AB12345", name: "Juan Cruz" },
+        {
+          ...blankPassenger(),
+          name: "Juan Cruz",
+          email: "juan.cruz@carelon.com",
+        },
       ],
     },
   ];
@@ -85,8 +94,8 @@ describe("requestInformationFromDraft", () => {
     expect(trip.pickupPoint).toBe("Smallville");
     expect(trip.dropoffPoint).toBe("CGS Office");
     expect(trip.passengers).toEqual([
-      { name: "Juan Cruz", domainId: "AB12345" },
-      { name: "Maria Reyes", domainId: "AC67890" },
+      { name: "Juan Cruz", email: "juan.cruz@carelon.com" },
+      { name: "Maria Reyes", email: null },
     ]);
   });
 

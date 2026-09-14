@@ -1,15 +1,15 @@
 import type { ReservationSpec } from "@/modules/db/dev-seed/insert";
 
 const PICKUP_PASSENGERS = [
-  { domainId: "AJ29104", name: "Jimera, Arielle" },
-  { domainId: "AM10394", name: "Dizon, Marco" },
+  { name: "Jimera, Arielle" },
+  { name: "Dizon, Marco" },
 ];
 
 const STANDBY_PASSENGERS = [
-  { domainId: "AK47281", name: "Reyes, Kaye" },
-  { domainId: "AM10394", name: "Dizon, Marco" },
-  { domainId: "AL55210", name: "Salcedo, Liza" },
-  { domainId: "AG80017", name: "Mateo, Angel" },
+  { name: "Reyes, Kaye" },
+  { name: "Dizon, Marco" },
+  { name: "Salcedo, Liza" },
+  { name: "Mateo, Angel" },
 ];
 
 /** The instant the fixtures stamped on every admin-acted row. */

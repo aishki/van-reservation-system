@@ -246,11 +246,12 @@ export async function submitBooking(
         .values(
           trip.passengers.map((passenger, position) => ({
             reservation_id: row.id,
-            // Upper-cased for the same reason the auth provider upper-cases a
-            // Domain ID: CGS accepts any case and the column is compared
-            // verbatim.
-            domain_id: passenger.domainId.trim().toUpperCase(),
             name: passenger.name.trim(),
+            // "" means the requestor left it blank — a real external client
+            // passenger, not a data-entry gap — so it's stored as null rather
+            // than an empty string that would read as "has no email" less
+            // clearly to a future query.
+            email: passenger.email.trim() || null,
             // 1-based, matching the dev seed and the detail query's ordering.
             position: position + 1,
           })),

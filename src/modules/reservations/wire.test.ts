@@ -13,7 +13,9 @@ function trip(overrides: Record<string, unknown> = {}) {
     purpose: "Travel-Related (Airport Transfers)",
     details: "Airport transfer for the site visit.",
     towerHead: "",
-    passengers: [{ domainId: "AJ29104", name: "Jimera, Arielle" }],
+    passengers: [
+      { name: "Jimera, Arielle", email: "arielle.jimera@carelon.com" },
+    ],
     pickupDate: "2026-09-01",
     pickupTime: "06:30",
     dropoffPoint: "AGT Building",
@@ -88,7 +90,7 @@ describe("bookingDraftSchema", () => {
 
     const passengers = Array.from(
       { length: MAX_PASSENGERS_PER_TRIP + 1 },
-      () => ({ domainId: "AJ29104", name: "Jimera, Arielle" }),
+      () => ({ name: "Jimera, Arielle", email: "arielle.jimera@carelon.com" }),
     );
     expect(
       bookingDraftSchema.safeParse(draft({ trips: [trip({ passengers })] }))

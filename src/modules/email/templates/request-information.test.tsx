@@ -15,8 +15,9 @@ const pickupTrip: RequestTrip = {
   pickupPoint: "Smallville",
   dropoffPoint: "CGS Office",
   passengers: [
-    { name: "Juan Cruz", domainId: "AB12345" },
-    { name: "Maria Reyes", domainId: "AC67890" },
+    { name: "Juan Cruz", email: "juan.cruz@carelon.com" },
+    // No email — an external client passenger, not a data-entry gap.
+    { name: "Maria Reyes", email: null },
   ],
 };
 
@@ -70,11 +71,13 @@ describe("RequestInformation", () => {
     expect(out).toContain("Site inspection");
   });
 
-  it("lists the passengers with their domain ids and a count", async () => {
+  it("lists the passengers with their email when present and a count", async () => {
     const out = await html(base);
     expect(out).toContain("2 passengers");
-    expect(out).toContain("Juan Cruz (AB12345)");
-    expect(out).toContain("Maria Reyes (AC67890)");
+    expect(out).toContain("Juan Cruz (juan.cruz@carelon.com)");
+    // No email on file — listed by name alone, no empty parentheses.
+    expect(out).toContain("Maria Reyes");
+    expect(out).not.toContain("Maria Reyes (");
   });
 
   it("says 1 passenger, not 1 passengers", async () => {
@@ -100,7 +103,7 @@ describe("RequestInformation", () => {
           window: "Mon, 17 Aug 2026 → Wed, 19 Aug 2026",
           hours: "6:00 AM – 6:00 PM",
           reportingPoint: "CGS Tower lobby",
-          passengers: [{ name: "Juan Cruz", domainId: "AB12345" }],
+          passengers: [{ name: "Juan Cruz", email: "juan.cruz@carelon.com" }],
         },
       ],
     });

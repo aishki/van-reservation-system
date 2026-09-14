@@ -255,14 +255,14 @@ export function reservationDetailFrom(row: ReservationRow): ReservationDetail {
     towerHead: standby ? "Abanto, Norlyn" : null,
     passengers: standby
       ? [
-          { domainId: "AK47281", name: "Reyes, Kaye" },
-          { domainId: "AM10394", name: "Dizon, Marco" },
-          { domainId: "AL55210", name: "Salcedo, Liza" },
-          { domainId: "AG80017", name: "Mateo, Angel" },
+          { domainId: "AK47281", name: "Reyes, Kaye", email: null },
+          { domainId: "AM10394", name: "Dizon, Marco", email: null },
+          { domainId: "AL55210", name: "Salcedo, Liza", email: null },
+          { domainId: "AG80017", name: "Mateo, Angel", email: null },
         ]
       : [
-          { domainId: "AJ29104", name: "Jimera, Arielle" },
-          { domainId: "AM10394", name: "Dizon, Marco" },
+          { domainId: "AJ29104", name: "Jimera, Arielle", email: null },
+          { domainId: "AM10394", name: "Dizon, Marco", email: null },
         ],
     pickupPoint: `${row.from} Tower lobby`,
     dropoffPoint: standby ? null : `${row.to} Building`,

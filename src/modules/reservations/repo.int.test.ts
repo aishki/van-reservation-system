@@ -466,9 +466,11 @@ describe("getReservationDetail", () => {
         shift: "11AM-11PM",
       },
     });
+    // Both are historical passengers — a real Domain ID, no email, exactly the
+    // shape rows written before manual entry replaced the lookup still have.
     expect(found?.detail.passengers).toEqual([
-      { domainId: "AJ29104", name: "Jimera, Arielle" },
-      { domainId: "AM10394", name: "Dizon, Marco" },
+      { domainId: "AJ29104", name: "Jimera, Arielle", email: null },
+      { domainId: "AM10394", name: "Dizon, Marco", email: null },
     ]);
   });
 

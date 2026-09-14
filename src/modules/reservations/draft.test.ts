@@ -3,8 +3,8 @@ import {
   type BookingDraft,
   blankDraft,
   blankTrip,
-  isCompleteDomainId,
   isDraftStepValid,
+  isValidEmail,
   isValidMobile,
   MESSAGES,
   normalizeMobile,
@@ -29,7 +29,7 @@ function validTrip(mode: RideMode): TripDraft {
     ...blankTrip(),
     purpose: "IT-Related",
     details: "Laptop replacement drop-off.",
-    passengers: [{ domainId: "AB12345", name: "Dela Cruz, Juan" }],
+    passengers: [{ name: "Dela Cruz, Juan", email: "" }],
   };
   if (mode === "standby") {
     return {
@@ -103,22 +103,24 @@ describe("isValidMobile", () => {
   });
 });
 
-describe("isCompleteDomainId", () => {
-  it("accepts exactly 7 characters", () => {
-    expect(isCompleteDomainId("AB12345")).toBe(true);
+describe("isValidEmail", () => {
+  it("accepts a plausible address", () => {
+    expect(isValidEmail("juan.delacruz@carelon.com")).toBe(true);
   });
 
   it.each([
-    ["6 characters", "AB1234"],
-    ["8 characters", "AB123456"],
+    ["no @", "juan.delacruz"],
+    ["no domain", "juan@"],
+    ["no local part", "@carelon.com"],
+    ["no TLD", "juan@carelon"],
     ["empty", ""],
-    ["7 spaces", "       "],
+    ["spaces only", "   "],
   ])("refuses %s", (_label, value) => {
-    expect(isCompleteDomainId(value)).toBe(false);
+    expect(isValidEmail(value)).toBe(false);
   });
 
   it("ignores surrounding whitespace when measuring", () => {
-    expect(isCompleteDomainId("  AB12345  ")).toBe(true);
+    expect(isValidEmail("  juan@carelon.com  ")).toBe(true);
   });
 });
 
@@ -215,17 +217,38 @@ describe("step 3 — trip details", () => {
   it("flags the specific passenger row that is wrong", () => {
     const draft = validDraft();
     draft.trips[0].passengers = [
-      { domainId: "AB12345", name: "Dela Cruz, Juan" },
-      { domainId: "SHORT", name: "Reyes, Ana" },
-      { domainId: "CD67890", name: "" },
+      { name: "Dela Cruz, Juan", email: "juan@example.com" },
+      { name: "Reyes, Ana", email: "not-an-email" },
+      { name: "", email: "" },
     ];
     const rows = validateStep(draft, 3).trips[0].passengerRows;
 
-    expect(rows[0]).toEqual({ domainId: false, name: false });
-    expect(rows[1]).toEqual({ domainId: true, name: false });
-    expect(rows[2]).toEqual({ domainId: false, name: true });
+    expect(rows[0]).toEqual({ name: false, email: false });
+    expect(rows[1]).toEqual({ name: false, email: true });
+    expect(rows[2]).toEqual({ name: true, email: false });
+    // A blank name wins over a malformed email — it's the harder blocker,
+    // and validateTrips only overwrites the block message for a bad name.
     expect(validateStep(draft, 3).trips[0].passengers).toBe(
       MESSAGES.passengersIncomplete,
+    );
+  });
+
+  it("accepts a passenger with no email at all — many are external clients", () => {
+    const draft = validDraft();
+    draft.trips[0].passengers = [{ name: "Dela Cruz, Juan", email: "" }];
+    const errors = validateStep(draft, 3).trips[0];
+
+    expect(errors.passengerRows[0]).toEqual({ name: false, email: false });
+    expect(errors.passengers).toBeUndefined();
+  });
+
+  it("flags a malformed email even with no bad name in the trip", () => {
+    const draft = validDraft();
+    draft.trips[0].passengers = [
+      { name: "Dela Cruz, Juan", email: "not-an-email" },
+    ];
+    expect(validateStep(draft, 3).trips[0].passengers).toBe(
+      MESSAGES.passengerEmailFormat,
     );
   });
 
@@ -395,9 +418,9 @@ describe("isDraftStepValid", () => {
   it("keeps passengerRows aligned with the passenger list", () => {
     const draft = validDraft();
     draft.trips[0].passengers = [
-      { domainId: "AB12345", name: "A" },
-      { domainId: "CD67890", name: "B" },
-      { domainId: "EF11111", name: "C" },
+      { name: "A", email: "" },
+      { name: "B", email: "" },
+      { name: "C", email: "" },
     ];
     expect(validateStep(draft, 3).trips[0].passengerRows).toHaveLength(3);
   });

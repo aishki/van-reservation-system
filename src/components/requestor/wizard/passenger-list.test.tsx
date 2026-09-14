@@ -1,46 +1,19 @@
 // @vitest-environment jsdom
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { PassengerDraft, TripErrors } from "@/modules/reservations/draft";
-import { blankPassenger } from "@/modules/reservations/draft";
-
-const apiFetchMock = vi.fn();
-
-vi.mock("@/lib/api-fetcher", () => ({
-  apiFetch: (...args: unknown[]) => apiFetchMock(...args),
-  ApiError: class MockApiError extends Error {
-    code: string;
-    status: number;
-    constructor(code: string, message: string, status: number) {
-      super(message);
-      this.code = code;
-      this.status = status;
-    }
-  },
-}));
-
-const { PassengerList } = await import(
-  "@/components/requestor/wizard/passenger-list"
-);
-const { ApiError } = await import("@/lib/api-fetcher");
-
-const LOOKUP_DEBOUNCE_MS = 350;
-
-function Providers({ children }: { children: ReactNode }) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-}
+import { afterEach, describe, expect, it } from "vitest";
+import { PassengerList } from "@/components/requestor/wizard/passenger-list";
+import {
+  blankPassenger,
+  type PassengerDraft,
+  type TripErrors,
+} from "@/modules/reservations/draft";
 
 function blankErrors(count: number): TripErrors {
   return {
     passengerRows: Array.from({ length: count }, () => ({
-      domainId: false,
       name: false,
+      email: false,
     })),
     missing: {},
   };
@@ -48,8 +21,7 @@ function blankErrors(count: number): TripErrors {
 
 /**
  * Owns a `PassengerDraft[]` and wires `onChange`/`onAdd`/`onRemove` back into
- * it — the same shape `step-trips.tsx` uses, so the row's derived-name effect
- * (which round-trips through the parent's state) is exercised for real.
+ * it — the same shape `step-trips.tsx` uses.
  */
 function Harness() {
   const [passengers, setPassengers] = useState<PassengerDraft[]>([
@@ -57,115 +29,120 @@ function Harness() {
   ]);
 
   return (
-    <Providers>
-      <PassengerList
-        passengers={passengers}
-        errors={blankErrors(passengers.length)}
-        tripLabel="Trip 1"
-        onChange={(index, patch) =>
-          setPassengers((prev) =>
-            prev.map((p, i) => (i === index ? { ...p, ...patch } : p)),
-          )
-        }
-        onAdd={() => setPassengers((prev) => [...prev, blankPassenger()])}
-        onRemove={(index) =>
-          setPassengers((prev) => prev.filter((_, i) => i !== index))
-        }
-      />
-    </Providers>
+    <PassengerList
+      passengers={passengers}
+      errors={blankErrors(passengers.length)}
+      tripLabel="Trip 1"
+      onChange={(index, patch) =>
+        setPassengers((prev) =>
+          prev.map((p, i) => (i === index ? { ...p, ...patch } : p)),
+        )
+      }
+      onAdd={() => setPassengers((prev) => [...prev, blankPassenger()])}
+      onRemove={(index) =>
+        setPassengers((prev) => prev.filter((_, i) => i !== index))
+      }
+    />
   );
 }
 
-function domainIdInput() {
-  return screen.getByLabelText(/Domain ID/) as HTMLInputElement;
+function nameInputs() {
+  return screen.getAllByLabelText(/Passenger Name/) as HTMLInputElement[];
 }
 
-function nameInput() {
-  return screen.getByLabelText(/Passenger Name/) as HTMLInputElement;
-}
-
-/**
- * Types a Domain ID and waits out the real debounce so the lookup fires.
- * Real timers rather than faked ones: TanStack Query schedules its own
- * fetch/retry bookkeeping on the timer queue, and racing that against fake
- * timers is more trouble than a 350ms real wait in a handful of tests.
- */
-async function typeDomainId(value: string) {
-  fireEvent.change(domainIdInput(), { target: { value } });
-  await new Promise((resolve) => setTimeout(resolve, LOOKUP_DEBOUNCE_MS + 20));
+function emailInputs() {
+  return screen.getAllByLabelText(/Passenger Email/) as HTMLInputElement[];
 }
 
 afterEach(() => {
   cleanup();
-  vi.clearAllMocks();
 });
 
 describe("PassengerList / PassengerRow", () => {
-  it("fills the name from a resolved 7-char Domain ID and locks the field", async () => {
-    apiFetchMock.mockResolvedValueOnce({ found: true, name: "Maria Santos" });
+  it("takes both fields as plain manual entry", () => {
     render(<Harness />);
 
-    await typeDomainId("CD67890");
+    fireEvent.change(nameInputs()[0], {
+      target: { value: "Juan Dela Cruz" },
+    });
+    fireEvent.change(emailInputs()[0], {
+      target: { value: "juan.delacruz@carelon.com" },
+    });
 
-    await screen.findByDisplayValue("Maria Santos");
-    expect(nameInput().readOnly).toBe(true);
+    expect(nameInputs()[0].value).toBe("Juan Dela Cruz");
+    expect(emailInputs()[0].value).toBe("juan.delacruz@carelon.com");
+    expect(nameInputs()[0].readOnly).toBe(false);
+    expect(emailInputs()[0].readOnly).toBe(false);
   });
 
-  it("shows the not-registered message and leaves the name empty for an unknown id", async () => {
-    apiFetchMock.mockResolvedValueOnce({ found: false });
+  it("leaves the email blank without complaint — many passengers have none", () => {
     render(<Harness />);
 
-    await typeDomainId("ZZ99999");
+    fireEvent.change(nameInputs()[0], { target: { value: "Juan Dela Cruz" } });
 
-    expect((await screen.findByRole("alert")).textContent).toBe(
-      "This Domain ID isn't registered.",
-    );
-    expect(nameInput().value).toBe("");
+    expect(emailInputs()[0].value).toBe("");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("clears the resolved name immediately when the Domain ID is edited again", async () => {
-    apiFetchMock.mockResolvedValueOnce({ found: true, name: "Maria Santos" });
+  it("adds and removes rows via the stepper", () => {
     render(<Harness />);
 
-    await typeDomainId("CD67890");
-    await screen.findByDisplayValue("Maria Santos");
+    fireEvent.click(screen.getByLabelText("Add one passenger"));
+    expect(nameInputs()).toHaveLength(2);
 
-    // Same patch that changes the id also clears the name — no debounce wait.
-    fireEvent.change(domainIdInput(), { target: { value: "CD6789" } });
-    expect(nameInput().value).toBe("");
+    fireEvent.click(screen.getByLabelText("Remove one passenger"));
+    expect(nameInputs()).toHaveLength(1);
   });
 
-  it("renders the ApiError's message for a rejected lookup", async () => {
-    apiFetchMock.mockRejectedValueOnce(
-      new ApiError(
-        "SERVICE_UNAVAILABLE",
-        "Couldn't check that Domain ID right now. Try again.",
-        503,
-      ),
-    );
+  it("disables removal at exactly one passenger", () => {
     render(<Harness />);
 
-    await typeDomainId("CD67890");
+    const remove = screen.getByLabelText(
+      "Remove one passenger",
+    ) as HTMLButtonElement;
+    expect(remove.disabled).toBe(true);
+  });
 
-    expect((await screen.findByRole("alert")).textContent).toBe(
-      "Couldn't check that Domain ID right now. Try again.",
+  it("shows the block-level error message when passed one", () => {
+    render(
+      <PassengerList
+        passengers={[blankPassenger()]}
+        errors={{
+          passengerRows: [{ name: true, email: false }],
+          missing: {},
+          passengers: "Every passenger needs a name.",
+        }}
+        tripLabel="Trip 1"
+        onChange={() => {}}
+        onAdd={() => {}}
+        onRemove={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Every passenger needs a name.",
     );
   });
 
-  it("falls back to the generic message for a non-envelope (UNKNOWN) failure", async () => {
-    apiFetchMock.mockRejectedValueOnce(
-      new ApiError(
-        "UNKNOWN",
-        "Request to /api/associates/lookup failed with status 502",
-        502,
-      ),
+  it("marks only the row an error flag points at", () => {
+    render(
+      <PassengerList
+        passengers={[blankPassenger(), blankPassenger()]}
+        errors={{
+          passengerRows: [
+            { name: false, email: false },
+            { name: false, email: true },
+          ],
+          missing: {},
+        }}
+        tripLabel="Trip 1"
+        onChange={() => {}}
+        onAdd={() => {}}
+        onRemove={() => {}}
+      />,
     );
-    render(<Harness />);
 
-    await typeDomainId("CD67890");
-
-    expect((await screen.findByRole("alert")).textContent).toBe(
-      "Couldn't check that Domain ID right now.",
-    );
+    expect(emailInputs()[0].getAttribute("aria-invalid")).toBe("false");
+    expect(emailInputs()[1].getAttribute("aria-invalid")).toBe("true");
   });
 });

@@ -32,8 +32,8 @@ export const MAX_TRIPS_PER_SUBMISSION = 10;
 export const MAX_PASSENGERS_PER_TRIP = 20;
 
 const passengerSchema = z.object({
-  domainId: z.string(),
   name: z.string(),
+  email: z.string(),
 });
 
 const tripSchema = z.object({

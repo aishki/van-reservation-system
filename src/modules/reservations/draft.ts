@@ -15,9 +15,14 @@ import type { RideMode, SiteLocation } from "@/modules/reservations/types";
  */
 
 export interface PassengerDraft {
-  /** Exactly 7 characters when valid. Upper-cased as the user types. */
-  domainId: string;
   name: string;
+  /**
+   * Optional — many passengers are external clients with no corporate
+   * account. Manual entry only for now; a name-search endpoint the API owner
+   * is building will eventually offer suggestions and fill this in from the
+   * matched directory record, same as it does today for `name`.
+   */
+  email: string;
 }
 
 export interface TripDraft {
@@ -90,7 +95,7 @@ export interface TripErrors {
   /** One message for the passenger block as a whole. */
   passengers?: string;
   /** Per-row flags, so the offending input gets the red border, not all of them. */
-  passengerRows: { domainId: boolean; name: boolean }[];
+  passengerRows: { name: boolean; email: boolean }[];
   /** Required schedule fields left blank. */
   missing: Partial<Record<ScheduleField, true>>;
   /** One message for the schedule block as a whole. */
@@ -111,8 +116,8 @@ export const MESSAGES = {
   purposeUnknown: "Choose a purpose from the list.",
   detailsRequired: "Add details for this trip's purpose.",
   towerRequired: "Select an approving Tower Head.",
-  passengersIncomplete:
-    "Every passenger needs a 7-character Domain ID and a name.",
+  passengersIncomplete: "Every passenger needs a name.",
+  passengerEmailFormat: "Enter a valid email address.",
   scheduleIncomplete: "Fill in every required schedule field.",
   endDateBeforeStart: "End date cannot be before the start date.",
   endTimeNotAfterStart:
@@ -120,7 +125,7 @@ export const MESSAGES = {
 } as const;
 
 export function blankPassenger(): PassengerDraft {
-  return { domainId: "", name: "" };
+  return { name: "", email: "" };
 }
 
 export function blankTrip(): TripDraft {
@@ -144,9 +149,15 @@ export function blankDraft(mode: RideMode): BookingDraft {
   return { mode, site: "", mobile: "", trips: [blankTrip()] };
 }
 
-/** A Domain ID is valid at exactly 7 characters, ignoring surrounding space. */
-export function isCompleteDomainId(value: string): boolean {
-  return value.trim().length === 7;
+/**
+ * A passenger's email is optional — many passengers are external clients — so
+ * this only rejects a NON-EMPTY value that isn't shaped like an address.
+ * Deliberately lenient (no length caps, no TLD allowlist): the server is not
+ * the authority on what a real address looks like, only on whether the form
+ * is plausible enough to store.
+ */
+export function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
 /**
@@ -166,8 +177,8 @@ export function isValidMobile(value: string): boolean {
 function emptyTripErrors(passengerCount: number): TripErrors {
   return {
     passengerRows: Array.from({ length: passengerCount }, () => ({
-      domainId: false,
       name: false,
+      email: false,
     })),
     missing: {},
   };
@@ -224,11 +235,14 @@ function validateTrips(draft: BookingDraft, errors: DraftErrors): void {
       tripErrors.towerHead = MESSAGES.towerRequired;
 
     trip.passengers.forEach((passenger, row) => {
-      const badId = !isCompleteDomainId(passenger.domainId);
       const badName = passenger.name.trim() === "";
-      tripErrors.passengerRows[row] = { domainId: badId, name: badName };
-      if (badId || badName)
-        tripErrors.passengers = MESSAGES.passengersIncomplete;
+      // Email is optional — only a NON-EMPTY, malformed value is an error.
+      const badEmail =
+        passenger.email.trim() !== "" && !isValidEmail(passenger.email);
+      tripErrors.passengerRows[row] = { name: badName, email: badEmail };
+      if (badName) tripErrors.passengers = MESSAGES.passengersIncomplete;
+      else if (badEmail && tripErrors.passengers === undefined)
+        tripErrors.passengers = MESSAGES.passengerEmailFormat;
     });
 
     // `.trim()` matters: the design document checks falsiness, so a

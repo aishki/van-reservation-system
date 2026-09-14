@@ -13,7 +13,7 @@ const trip = (overrides: Partial<RequestTrip> = {}): RequestTrip =>
     pickup: "Mon, 10 Aug 2026, 7:30 AM",
     pickupPoint: "Smallville",
     dropoffPoint: "CGS Office",
-    passengers: [{ name: "Juan Cruz", domainId: "AB12345" }],
+    passengers: [{ name: "Juan Cruz", email: "juan.cruz@carelon.com" }],
     ...overrides,
   }) as RequestTrip;
 
@@ -66,7 +66,7 @@ describe("renderBookingSubmitted", () => {
       "VR-1043",
       "VR-1044",
       "Airport run",
-      "Juan Cruz (AB12345)",
+      "Juan Cruz (juan.cruz@carelon.com)",
       "http://localhost:3000/manage",
     ]) {
       expect(html).toContain(value);

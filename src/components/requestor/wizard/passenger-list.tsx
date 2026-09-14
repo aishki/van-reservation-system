@@ -1,7 +1,5 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
 import { Hint } from "@/components/common/hint";
 import {
   FIELD_ERROR,
@@ -9,19 +7,12 @@ import {
   FIELD_SM,
   fieldBorder,
 } from "@/components/requestor/wizard/wizard-theme";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { ApiError, apiFetch } from "@/lib/api-fetcher";
 import { cn } from "@/lib/utils";
-import { canonicalDomainId } from "@/modules/auth/domain-id";
-import type { PassengerDraft, TripErrors } from "@/modules/reservations/draft";
-
-const DOMAIN_ID_LENGTH = 7;
-const LOOKUP_DEBOUNCE_MS = 350;
-
-interface LookupResponse {
-  found: boolean;
-  name?: string;
-}
+import {
+  MESSAGES,
+  type PassengerDraft,
+  type TripErrors,
+} from "@/modules/reservations/draft";
 
 interface PassengerListProps {
   passengers: PassengerDraft[];
@@ -45,9 +36,12 @@ interface PassengerListProps {
  * without it the only feedback is a visual row appearing, and a keyboard user
  * who just pressed "−" gets nothing.
  *
- * Domain IDs upper-case as they are typed rather than via `text-transform`. CSS
- * would only change the rendering, leaving the lower-case value in state to be
- * submitted and compared case-sensitively against `users.domain_id`.
+ * Both fields are manual entry — there is no directory lookup here yet. A
+ * name-search endpoint the API owner is building will eventually offer
+ * suggestions as the requestor types a name and fill in the matched person's
+ * email automatically, the way the Domain ID lookup used to fill in the name.
+ * Until then, Passenger Email stays a plain, optional text field: many
+ * passengers are external clients with no corporate account to search for.
  */
 export function PassengerList({
   passengers,
@@ -108,26 +102,16 @@ export function PassengerList({
       <div className="flex flex-col gap-3">
         {passengers.map((passenger, index) => (
           <PassengerRow
-            // A passenger has no identity until it is saved, and two blank
-            // rows are indistinguishable, so reconciling by index is the only
-            // stable option. PassengerRow does own real per-row state now —
-            // the debounce timer and the useQuery subscription — so a mid-
-            // list removal hands the surviving row's state to a different
-            // passenger for one debounce cycle: `debounced` still holds the
-            // old occupant's id while `passenger.domainId` is the new one's.
-            // Safe only because `complete` gates every derived flag (nothing
-            // renders off the mismatched pair) and the query cache is keyed
-            // by id value, not row identity, so the re-settle resolves
-            // instantly from cache rather than refetching.
-            // Known cost: removing a middle row drops focus to the body,
-            // because the DOM node the caret was in is the one that unmounts.
-            // biome-ignore lint/suspicious/noArrayIndexKey: safe per the invariant above
+            // A passenger has no stable identity of its own — two blank rows
+            // are indistinguishable — so reconciling by index is the only
+            // option. Both fields are plain controlled inputs with no
+            // per-row async state (unlike the old lookup-driven row), so a
+            // mid-list removal has no stale-state hazard to guard against.
+            // biome-ignore lint/suspicious/noArrayIndexKey: safe per the comment above
             key={index}
             passenger={passenger}
             index={index}
-            row={
-              errors.passengerRows[index] ?? { domainId: false, name: false }
-            }
+            row={errors.passengerRows[index] ?? { name: false, email: false }}
             onlyOne={onlyOne}
             tripLabel={tripLabel}
             onChange={(patch) => onChange(index, patch)}
@@ -156,20 +140,14 @@ export function PassengerList({
 interface PassengerRowProps {
   passenger: PassengerDraft;
   index: number;
-  row: { domainId: boolean; name: boolean };
+  row: { name: boolean; email: boolean };
   onlyOne: boolean;
   tripLabel: string;
   onChange: (patch: Partial<PassengerDraft>) => void;
   onRemove: () => void;
 }
 
-/**
- * One passenger row: a Domain ID input and the name it resolves to.
- *
- * The name is never typed — it is derived from the Domain ID via
- * `/api/associates/lookup`, debounced so the lookup fires once the user
- * pauses rather than on every keystroke.
- */
+/** One passenger row: a name and an optional email, both typed by hand. */
 function PassengerRow({
   passenger,
   index,
@@ -179,52 +157,6 @@ function PassengerRow({
   onChange,
   onRemove,
 }: PassengerRowProps) {
-  const debouncedId = useDebouncedValue(passenger.domainId, LOOKUP_DEBOUNCE_MS);
-  // Both guards matter: `debouncedId` alone would fire a stale lookup while
-  // the user is still editing back below 7 characters. This gate is also
-  // what makes the array-index key on this row safe (see the comment above
-  // `key={index}` in PassengerList) — it stops a transiently mismatched
-  // debounce/query pair from rendering anything after a mid-list removal.
-  const complete =
-    passenger.domainId.length === DOMAIN_ID_LENGTH &&
-    debouncedId === passenger.domainId;
-
-  const lookup = useQuery({
-    queryKey: ["associate-name", debouncedId],
-    queryFn: () =>
-      apiFetch<LookupResponse>("/api/associates/lookup", {
-        method: "POST",
-        body: JSON.stringify({ domainId: debouncedId }),
-      }),
-    enabled: complete,
-    staleTime: Number.POSITIVE_INFINITY,
-    retry: false,
-  });
-
-  // Write the resolved name into the draft — the draft stays the single
-  // source of truth for submit/validation; the query only feeds it.
-  const resolvedName =
-    complete && lookup.data?.found ? (lookup.data.name ?? "") : "";
-  useEffect(() => {
-    if (resolvedName !== "" && resolvedName !== passenger.name) {
-      onChange({ name: resolvedName });
-    }
-  }, [resolvedName, passenger.name, onChange]);
-
-  const pending = complete && lookup.isPending;
-  const notRegistered = complete && lookup.data?.found === false;
-  const failed = complete && lookup.isError;
-  // An ApiError carries the route's user-facing message; anything else (e.g.
-  // a network TypeError, or an ApiError with code "UNKNOWN" carrying
-  // apiFetch's technical "failed with status …" text for a non-envelope
-  // failure) falls back to the generic copy.
-  const failureMessage =
-    lookup.error instanceof ApiError &&
-    lookup.error.code !== "UNKNOWN" &&
-    lookup.error.message !== ""
-      ? lookup.error.message
-      : "Couldn't check that Domain ID right now.";
-
   return (
     <div>
       <div className="grid grid-cols-[32px_1fr] items-end gap-3 md:grid-cols-[32px_1fr_1fr_34px]">
@@ -237,44 +169,31 @@ function PassengerRow({
 
         <div>
           <label className={FIELD_LABEL_SM}>
-            Domain ID <span className="text-error">*</span>
+            Passenger Name <span className="text-error">*</span>
             <input
               type="text"
-              value={passenger.domainId}
-              maxLength={7}
-              placeholder="AB12345"
+              value={passenger.name}
+              placeholder="Juan Dela Cruz"
               autoComplete="off"
-              spellCheck={false}
-              aria-invalid={row.domainId}
-              onChange={(event) =>
-                onChange({
-                  domainId: canonicalDomainId(event.target.value),
-                  name: "",
-                })
-              }
-              className={cn(FIELD_SM, fieldBorder(row.domainId), "mt-1.5")}
+              aria-invalid={row.name}
+              onChange={(event) => onChange({ name: event.target.value })}
+              className={cn(FIELD_SM, fieldBorder(row.name), "mt-1.5")}
             />
           </label>
         </div>
 
         <div>
           <label className={FIELD_LABEL_SM}>
-            Passenger Name <span className="text-error">*</span>
-            <Hint content="Filled automatically from the Domain ID.">
-              <input
-                type="text"
-                value={passenger.name}
-                readOnly
-                tabIndex={-1}
-                placeholder={pending ? "Looking up…" : "Derived from Domain ID"}
-                aria-invalid={row.name}
-                className={cn(
-                  FIELD_SM,
-                  fieldBorder(row.name),
-                  "mt-1.5 cursor-default select-none",
-                )}
-              />
-            </Hint>
+            Passenger Email
+            <input
+              type="email"
+              value={passenger.email}
+              placeholder="name@example.com (optional)"
+              autoComplete="off"
+              aria-invalid={row.email}
+              onChange={(event) => onChange({ email: event.target.value })}
+              className={cn(FIELD_SM, fieldBorder(row.email), "mt-1.5")}
+            />
           </label>
         </div>
 
@@ -299,9 +218,9 @@ function PassengerRow({
         </Hint>
       </div>
 
-      {(notRegistered || failed) && (
+      {row.email && (
         <p role="alert" className={FIELD_ERROR}>
-          {notRegistered ? "This Domain ID isn't registered." : failureMessage}
+          {MESSAGES.passengerEmailFormat}
         </p>
       )}
     </div>

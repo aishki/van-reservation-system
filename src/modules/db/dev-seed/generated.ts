@@ -73,11 +73,11 @@ const ROUTES: [string, string][] = [
 const TIMES = ["06:30", "07:00", "08:00", "09:30", "13:00", "17:30"];
 
 const PASSENGER_POOL = [
-  { domainId: "AJ29104", name: "Jimera, Arielle" },
-  { domainId: "AM10394", name: "Dizon, Marco" },
-  { domainId: "AK47281", name: "Reyes, Kaye" },
-  { domainId: "AL55210", name: "Salcedo, Liza" },
-  { domainId: "AG80017", name: "Mateo, Angel" },
+  { name: "Jimera, Arielle" },
+  { name: "Dizon, Marco" },
+  { name: "Reyes, Kaye" },
+  { name: "Salcedo, Liza" },
+  { name: "Mateo, Angel" },
 ];
 
 const PICKUP_PURPOSES = [
@@ -163,7 +163,7 @@ export function buildGeneratedReservations(): ReservationSpec[] {
       const passengers = Array.from({ length: passengerCount }, (_, offset) => {
         const source =
           PASSENGER_POOL[(firstPassenger + offset) % PASSENGER_POOL.length];
-        return { domainId: source.domainId, name: source.name };
+        return { name: source.name };
       });
       const purpose = standby ? "Others" : enrichPick(PICKUP_PURPOSES);
       const costPhp = standby ? 3000 + Math.floor(enrich() * 60) * 100 : null;

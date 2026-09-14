@@ -289,8 +289,8 @@ function emptyErrors(draft: BookingDraft): DraftErrors {
   return {
     trips: draft.trips.map((trip) => ({
       passengerRows: trip.passengers.map(() => ({
-        domainId: false,
         name: false,
+        email: false,
       })),
       missing: {},
     })),

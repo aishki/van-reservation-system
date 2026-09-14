@@ -316,7 +316,7 @@ export async function getReservationDetail(
 
   const passengers = await db
     .selectFrom("reservation_passengers")
-    .select(["domain_id", "name"])
+    .select(["domain_id", "name", "email"])
     .where("reservation_id", "=", row.reservation_id)
     .orderBy("position", "asc")
     .execute();
@@ -335,6 +335,7 @@ export async function getReservationDetail(
     passengers: passengers.map((p) => ({
       domainId: p.domain_id,
       name: p.name,
+      email: p.email,
     })),
     pickupPoint: row.pickup_location,
     dropoffPoint: row.dropoff_location,

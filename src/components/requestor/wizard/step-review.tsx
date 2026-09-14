@@ -140,7 +140,9 @@ function standbyRows(trip: TripDraft) {
 function passengerSummary(trip: TripDraft): string {
   const count = trip.passengers.length;
   const listed = trip.passengers
-    .map((p) => `${p.name || EM_DASH} (${p.domainId || EM_DASH})`)
+    .map((p) =>
+      p.email.trim() ? `${p.name || EM_DASH} (${p.email})` : p.name || EM_DASH,
+    )
     .join(" · ");
   return `${count} passenger${count === 1 ? "" : "s"}: ${listed}`;
 }

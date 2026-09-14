@@ -37,7 +37,7 @@ export interface ReservationSpec {
   towerHead: string | null;
   vendor: string | null;
   costPhp: number | null;
-  passengers: { domainId: string; name: string }[];
+  passengers: { name: string; email?: string }[];
   /** Driver NAME from SEED_DRIVERS, or null. */
   driver: string | null;
   /** Van NUMBER from SEED_VANS, or null. */
@@ -139,8 +139,8 @@ export async function insertReservation(
       .values(
         spec.passengers.map((passenger, index) => ({
           reservation_id: reservation.id,
-          domain_id: passenger.domainId,
           name: passenger.name,
+          email: passenger.email ?? null,
           position: index + 1,
         })),
       )

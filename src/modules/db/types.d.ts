@@ -92,7 +92,8 @@ export interface ReservationEvents {
 }
 
 export interface ReservationPassengers {
-  domain_id: string;
+  domain_id: string | null;
+  email: string | null;
   id: Generated<string>;
   name: string;
   position: number;

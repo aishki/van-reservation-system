@@ -157,7 +157,7 @@ export function requestInformationFromDraft(
       const referenceId = references[index] ?? EM_DASH;
       const passengers = trip.passengers.map((passenger) => ({
         name: passenger.name || EM_DASH,
-        domainId: passenger.domainId || EM_DASH,
+        email: passenger.email || null,
       }));
 
       if (draft.mode === "standby") {
@@ -242,7 +242,7 @@ export async function loadRequestInformation(
 
   const passengerRows = await trx
     .selectFrom("reservation_passengers")
-    .select(["domain_id", "name"])
+    .select(["name", "email"])
     // The order the requestor entered them, so the mail reads like the form.
     .orderBy("position")
     .where("reservation_id", "=", reservationId)
@@ -250,7 +250,7 @@ export async function loadRequestInformation(
 
   const passengers = passengerRows.map((passenger) => ({
     name: passenger.name,
-    domainId: passenger.domain_id,
+    email: passenger.email,
   }));
 
   const driver = assignedVanOf(row);

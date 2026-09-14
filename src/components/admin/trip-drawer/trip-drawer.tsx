@@ -778,14 +778,26 @@ export function TripDrawer({
             )}
             <DrawerReadout label={`Passengers (${detail.passengers.length})`}>
               <ul className="flex flex-col gap-1">
-                {detail.passengers.map((passenger) => (
-                  <li key={passenger.domainId}>
-                    {passenger.name}{" "}
-                    <span className="font-mono text-xs text-gray-3">
-                      {passenger.domainId}
-                    </span>
-                  </li>
-                ))}
+                {detail.passengers.map((passenger, index) => {
+                  // Neither field is guaranteed unique or even present — a
+                  // manually-entered passenger may have no email, and two
+                  // passengers may share a name — so the stable, unique key is
+                  // position: the list is a read-only snapshot of a fixed,
+                  // already-submitted order, never reordered or filtered.
+                  // biome-ignore lint/suspicious/noArrayIndexKey: read-only snapshot in a fixed order, see above
+                  const key = index;
+                  const contact = passenger.email ?? passenger.domainId;
+                  return (
+                    <li key={key}>
+                      {passenger.name}{" "}
+                      {contact !== null && (
+                        <span className="font-mono text-xs text-gray-3">
+                          {contact}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </DrawerReadout>
           </DrawerSection>

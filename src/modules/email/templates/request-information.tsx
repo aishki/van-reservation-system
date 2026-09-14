@@ -16,8 +16,11 @@ import { styles } from "@/modules/email/templates/styles";
 
 export interface RequestPassenger {
   name: string;
-  /** 7-character Domain ID, shown in parentheses after the name. */
-  domainId: string;
+  /**
+   * Shown in parentheses after the name when present. Optional — many
+   * passengers are external clients with no corporate email.
+   */
+  email: string | null;
 }
 
 /**
@@ -174,12 +177,16 @@ function Card({
 }
 
 /**
- * "2 passengers: Juan Cruz (AB12345) · Maria Reyes (AC67890)" — the same
- * summary line step 4 renders, so the two read identically.
+ * "2 passengers: Juan Cruz (juan.cruz@carelon.com) · Maria Reyes" — the same
+ * summary line step 4 renders, so the two read identically. A passenger with
+ * no email (an external client, or a booking made before manual entry
+ * replaced the Domain ID lookup) is listed by name alone.
  */
 function passengerSummary(passengers: RequestPassenger[]): string {
   const count = passengers.length;
-  const listed = passengers.map((p) => `${p.name} (${p.domainId})`).join(" · ");
+  const listed = passengers
+    .map((p) => (p.email ? `${p.name} (${p.email})` : p.name))
+    .join(" · ");
   return `${count} passenger${count === 1 ? "" : "s"}: ${listed}`;
 }
 
