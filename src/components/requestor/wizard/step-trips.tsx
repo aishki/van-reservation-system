@@ -31,6 +31,7 @@ import {
   DEV_TOWER_HEADS,
   TRIP_PURPOSES,
 } from "@/modules/reservations/reference";
+import { MAX_TRIPS_PER_SUBMISSION } from "@/modules/reservations/wire";
 
 interface StepTripsProps {
   draft: BookingDraft;
@@ -70,6 +71,10 @@ export function StepTrips({
 }: StepTripsProps) {
   const standby = draft.mode === "standby";
   const onlyOne = draft.trips.length === 1;
+  // Server-enforced too (`bookingDraftSchema`), but refusing it here means a
+  // requestor never fills in nine more blocks only to have the submit refused.
+  const atCap = draft.trips.length >= MAX_TRIPS_PER_SUBMISSION;
+  const capHint = `Maximum of ${MAX_TRIPS_PER_SUBMISSION} ${standby ? "dates" : "trips"} per submission.`;
   const history = useFieldHistory();
 
   return (
@@ -195,25 +200,40 @@ export function StepTrips({
 
               <hr className="mt-6 mb-5 border-gray-6" />
 
-              <button
-                type="button"
-                onClick={() => onDuplicateTrip(index)}
-                className={WIZARD_DUPLICATE_TRIP}
-              >
-                <Copy aria-hidden="true" className="size-4" />
-                Duplicate {standby ? "Date" : "Trip"}
-              </button>
+              <Hint content={capHint} when={atCap} wrap>
+                <button
+                  type="button"
+                  onClick={() => onDuplicateTrip(index)}
+                  disabled={atCap}
+                  className={cn(
+                    WIZARD_DUPLICATE_TRIP,
+                    atCap &&
+                      "cursor-not-allowed opacity-50 hover:brightness-100",
+                  )}
+                >
+                  <Copy aria-hidden="true" className="size-4" />
+                  Duplicate {standby ? "Date" : "Trip"}
+                </button>
+              </Hint>
             </section>
           );
         })}
 
-        <button
-          type="button"
-          onClick={onAddTrip}
-          className="cursor-pointer rounded-card border-[1.5px] border-dashed border-primary bg-background p-[18px] text-[1.0625rem] font-semibold text-brand hover:bg-brand-wash focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        >
-          + {standby ? "Add another date" : "Add another trip"}
-        </button>
+        <Hint content={capHint} when={atCap} wrap wrapClassName="w-full">
+          <button
+            type="button"
+            onClick={onAddTrip}
+            disabled={atCap}
+            className={cn(
+              "rounded-card border-[1.5px] border-dashed border-primary bg-background p-[18px] text-[1.0625rem] font-semibold text-brand focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-primary",
+              atCap
+                ? "w-full cursor-not-allowed opacity-50"
+                : "w-full cursor-pointer hover:bg-brand-wash",
+            )}
+          >
+            + {standby ? "Add another date" : "Add another trip"}
+          </button>
+        </Hint>
       </div>
     </>
   );

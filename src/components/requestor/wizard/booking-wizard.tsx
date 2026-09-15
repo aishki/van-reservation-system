@@ -29,6 +29,7 @@ import {
 } from "@/modules/reservations/draft";
 import { FIELD_HISTORY_KEY } from "@/modules/reservations/query-keys";
 import type { RideMode, SiteLocation } from "@/modules/reservations/types";
+import { MAX_TRIPS_PER_SUBMISSION } from "@/modules/reservations/wire";
 
 interface BookingWizardProps {
   mode: RideMode;
@@ -124,6 +125,9 @@ export function BookingWizard({ mode, name, email }: BookingWizardProps) {
    */
   const duplicateTrip = (index: number) =>
     setDraft((current) => {
+      // Belt and suspenders: `StepTrips` disables the button at the cap, this
+      // guards the handler itself the same way `onRemoveTrip` guards the floor.
+      if (current.trips.length >= MAX_TRIPS_PER_SUBMISSION) return current;
       const source = current.trips[index];
       const copy: TripDraft = {
         ...source,
@@ -260,10 +264,11 @@ export function BookingWizard({ mode, name, email }: BookingWizardProps) {
             errors={errors}
             onTrip={patchTrip}
             onAddTrip={() =>
-              setDraft((current) => ({
-                ...current,
-                trips: [...current.trips, blankTrip()],
-              }))
+              setDraft((current) =>
+                current.trips.length >= MAX_TRIPS_PER_SUBMISSION
+                  ? current
+                  : { ...current, trips: [...current.trips, blankTrip()] },
+              )
             }
             onDuplicateTrip={duplicateTrip}
             onRemoveTrip={(index) =>

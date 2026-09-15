@@ -188,7 +188,10 @@ real data. See [operations.md §3](operations.md#3-migrations-and-seeds).
 
 **One `reservations` row is one trip.** There is no parent booking table; a
 wizard submission inserts up to `MAX_TRIPS_PER_SUBMISSION` (10) rows, each with
-its own reference number.
+its own reference number. `bookingDraftSchema` (`wire.ts`) refuses more than
+that server-side; `StepTrips` also disables "Add another trip"/"Duplicate
+Trip" once the draft hits the cap, so a requestor is stopped before filling in
+a block that would only be rejected at submit.
 
 Two ride modes, enforced by `reservations_mode_shape_check`:
 
