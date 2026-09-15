@@ -102,6 +102,26 @@ beforeEach(() => {
     if (path === "/api/vans") return Promise.resolve(FLEET);
     if (path === "/api/reservations") return Promise.resolve(serverRows);
 
+    if (path.endsWith("/cancel") && init?.method === "POST") {
+      const id = path.split("/").at(-2);
+      serverRows = serverRows.map((row) =>
+        row.id === id ? { ...row, status: "Cancelled" } : row,
+      );
+      return Promise.resolve(null);
+    }
+    if (path.endsWith("/no-show")) {
+      const id = path.split("/").at(-2);
+      serverRows = serverRows.map((row) =>
+        row.id === id
+          ? {
+              ...row,
+              status: init?.method === "DELETE" ? "Approved" : "No Show",
+            }
+          : row,
+      );
+      return Promise.resolve(null);
+    }
+
     // Checked before the detail branch below: a PATCH and a detail GET share
     // one path and differ only by method.
     if (init?.method === "PATCH") {
@@ -336,5 +356,100 @@ describe("MasterListView status filter", () => {
   it("shows no status control on the Pending tab", () => {
     setup();
     expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
+  });
+});
+
+/**
+ * Cancel, Mark No Show and Revert to Approved skip the drawer entirely — one
+ * row-menu click opens a confirmation, and confirming calls its own endpoint
+ * directly rather than going through the decide/reassign PATCH.
+ */
+describe("MasterListView direct row actions", () => {
+  async function openMenuFor(reference: string) {
+    fireEvent.click(
+      screen.getByRole("button", { name: `Actions for ${reference}` }),
+    );
+  }
+
+  it("cancels an approved trip once the confirmation is accepted", async () => {
+    setup();
+    showAllRequests();
+    await openMenuFor("REQ-1049");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Cancel trip" }));
+
+    await screen.findByText("Cancel this trip?");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel trip" }));
+
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/reservations/REQ-1049/cancel",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+  });
+
+  // Escape and "Keep it" both close the dialog via the same `onKeep`; this
+  // covers the button, which is the one a test can click without simulating
+  // a native Escape keypress on a mocked `<dialog>`.
+  it("calls nothing when the cancel confirmation is dismissed", async () => {
+    setup();
+    showAllRequests();
+    await openMenuFor("REQ-1049");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Cancel trip" }));
+
+    await screen.findByText("Cancel this trip?");
+    fireEvent.click(screen.getByRole("button", { name: "Keep it" }));
+
+    expect(screen.queryByText("Cancel this trip?")).toBeNull();
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      "/api/reservations/REQ-1049/cancel",
+      expect.anything(),
+    );
+  });
+
+  it("marks an approved trip No Show once confirmed", async () => {
+    setup();
+    showAllRequests();
+    await openMenuFor("REQ-1049");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Mark No Show" }));
+
+    await screen.findByText("Mark this trip as a No Show?");
+    fireEvent.click(screen.getByRole("button", { name: "Mark No Show" }));
+
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/reservations/REQ-1049/no-show",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+  });
+
+  it("reverts a no-show trip back to Approved once confirmed", async () => {
+    // No sample row starts as No Show, so this trip is marked first — the
+    // same route the previous test proves works — then reverted.
+    setup();
+    showAllRequests();
+    await openMenuFor("REQ-1049");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Mark No Show" }));
+    await screen.findByText("Mark this trip as a No Show?");
+    fireEvent.click(screen.getByRole("button", { name: "Mark No Show" }));
+    await waitFor(() => {
+      const row = within(rowFor("REQ-1049"));
+      expect(row.getByText("No Show")).toBeDefined();
+    });
+
+    await openMenuFor("REQ-1049");
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Revert to Approved" }),
+    );
+    await screen.findByText("Revert to Approved?");
+    fireEvent.click(screen.getByRole("button", { name: "Revert to Approved" }));
+
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/reservations/REQ-1049/no-show",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
   });
 });

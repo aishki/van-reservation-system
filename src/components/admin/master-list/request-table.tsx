@@ -18,6 +18,9 @@ import type {
   SortColumn,
 } from "@/modules/reservations/admin-filters";
 import {
+  canRevertNoShow,
+  isCancellable,
+  isNoShowEligible,
   isReassignable,
   type ReservationRow,
   RIDE_MODE_LABELS,
@@ -32,6 +35,9 @@ interface RequestTableProps {
   onOpen: (row: ReservationRow) => void;
   onDecide: (row: ReservationRow, decision: "approve" | "reject") => void;
   onReassign: (row: ReservationRow) => void;
+  onCancel: (row: ReservationRow) => void;
+  onNoShow: (row: ReservationRow) => void;
+  onRevertNoShow: (row: ReservationRow) => void;
   sort: AdminSort;
   onSort: (column: SortColumn) => void;
 }
@@ -76,6 +82,9 @@ export function RequestTable({
   onOpen,
   onDecide,
   onReassign,
+  onCancel,
+  onNoShow,
+  onRevertNoShow,
   sort,
   onSort,
 }: RequestTableProps) {
@@ -279,6 +288,27 @@ export function RequestTable({
                         enabled: pending,
                         disabledReason: "Only pending requests can be decided.",
                         onSelect: () => onDecide(row, "reject"),
+                      },
+                      {
+                        label: "Mark No Show",
+                        enabled: isNoShowEligible(row.status),
+                        disabledReason:
+                          "Only an approved request can be marked as a no-show.",
+                        onSelect: () => onNoShow(row),
+                      },
+                      {
+                        label: "Revert to Approved",
+                        enabled: canRevertNoShow(row.status),
+                        disabledReason:
+                          "Only a request marked No Show can be reverted.",
+                        onSelect: () => onRevertNoShow(row),
+                      },
+                      {
+                        label: "Cancel trip",
+                        enabled: isCancellable(row.status),
+                        disabledReason:
+                          "Only a pending or approved request can be cancelled.",
+                        onSelect: () => onCancel(row),
                       },
                     ]}
                   />

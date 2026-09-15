@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ADMIN_CARD, ADMIN_PAGE } from "@/components/admin/admin-theme";
@@ -11,7 +11,8 @@ import {
 } from "@/components/admin/master-list/request-table";
 import type { DecisionResult } from "@/components/admin/trip-drawer/trip-drawer";
 import { useTripDrawer } from "@/components/admin/trip-drawer/trip-drawer-host";
-import { apiFetch } from "@/lib/api-fetcher";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { ApiError, apiFetch } from "@/lib/api-fetcher";
 import {
   type AdminFilter,
   type AdminSort,
@@ -23,6 +24,12 @@ import {
 } from "@/modules/reservations/admin-filters";
 import { ADMIN_RESERVATIONS_KEY } from "@/modules/reservations/query-keys";
 import type { ReservationRow } from "@/modules/reservations/types";
+
+/** The three direct row actions that skip the drawer and confirm in place. */
+type PendingAction =
+  | { kind: "cancel"; row: ReservationRow }
+  | { kind: "noShow"; row: ReservationRow }
+  | { kind: "revertNoShow"; row: ReservationRow };
 
 interface MasterListViewProps {
   initialRows: ReservationRow[];
@@ -62,6 +69,11 @@ export function MasterListView({
   adminName,
 }: MasterListViewProps) {
   const [filter, setFilter] = useState<AdminFilter>(blankAdminFilter);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(
+    null,
+  );
+  const [actionBusy, setActionBusy] = useState(false);
+  const queryClient = useQueryClient();
 
   // `initialData`, not `useState`: the page already fetched these rows
   // server-side, and seeding the cache with them means the list is queryable —
@@ -109,6 +121,42 @@ export function MasterListView({
     toast.success(`${result.id} ${result.status.toLowerCase()}.`);
   };
 
+  /**
+   * Cancel, Mark No Show and Revert to Approved all skip the drawer — they
+   * are one-step confirmations, not an edit — so they invalidate the list
+   * directly rather than going through `onDecided`.
+   */
+  const confirmPendingAction = async () => {
+    if (pendingAction === null) return;
+    const { kind, row } = pendingAction;
+    const id = encodeURIComponent(row.id);
+
+    setActionBusy(true);
+    try {
+      if (kind === "cancel") {
+        await apiFetch(`/api/reservations/${id}/cancel`, { method: "POST" });
+      } else if (kind === "noShow") {
+        await apiFetch(`/api/reservations/${id}/no-show`, { method: "POST" });
+      } else {
+        await apiFetch(`/api/reservations/${id}/no-show`, {
+          method: "DELETE",
+        });
+      }
+
+      void queryClient.invalidateQueries({ queryKey: ADMIN_RESERVATIONS_KEY });
+      toast.success(successMessage(kind, row));
+      setPendingAction(null);
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError
+          ? error.message
+          : "Something went wrong. Try again.",
+      );
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   const { openId, openFor, drawer } = useTripDrawer({
     adminName,
     onDecided: announceDecision,
@@ -131,6 +179,11 @@ export function MasterListView({
             onOpen={(row) => openFor(row.id)}
             onDecide={(row, decision) => openFor(row.id, { decision })}
             onReassign={(row) => openFor(row.id, { mode: "reassign" })}
+            onCancel={(row) => setPendingAction({ kind: "cancel", row })}
+            onNoShow={(row) => setPendingAction({ kind: "noShow", row })}
+            onRevertNoShow={(row) =>
+              setPendingAction({ kind: "revertNoShow", row })
+            }
             sort={filter.sort[filter.tab]}
             onSort={sortBy}
           />
@@ -140,8 +193,83 @@ export function MasterListView({
       </div>
 
       {drawer}
+
+      {pendingAction !== null && (
+        <ConfirmDialog
+          {...dialogCopyFor(pendingAction)}
+          busy={actionBusy}
+          onKeep={() => setPendingAction(null)}
+          onConfirm={confirmPendingAction}
+        />
+      )}
     </div>
   );
+}
+
+/** The reference this action names, e.g. `"VR-2026-000123 will be…"`. */
+function successMessage(
+  kind: PendingAction["kind"],
+  row: ReservationRow,
+): string {
+  if (kind === "cancel") return `${row.id} cancelled.`;
+  if (kind === "noShow") return `${row.id} marked as a no-show.`;
+  return `${row.id} reverted to Approved.`;
+}
+
+/**
+ * Title, body and button copy for each of the three direct actions.
+ *
+ * Cancel and Mark No Show are styled `destructive` (red confirm button) —
+ * Cancel because it genuinely cannot be undone, Mark No Show because it is a
+ * consequential call even though it has its own way back. Revert stays the
+ * default brand styling: it is a correction, not a decision to flag.
+ */
+function dialogCopyFor(action: PendingAction): {
+  title: string;
+  body: React.ReactNode;
+  confirmLabel: string;
+  confirmingLabel: string;
+  tone: "destructive" | "default";
+} {
+  const { row } = action;
+  if (action.kind === "cancel") {
+    return {
+      title: "Cancel this trip?",
+      body: (
+        <>
+          {row.id} will be cancelled and its requestor notified. Any assigned
+          driver and van will be freed. This cannot be undone.
+        </>
+      ),
+      confirmLabel: "Cancel trip",
+      confirmingLabel: "Cancelling…",
+      tone: "destructive",
+    };
+  }
+  if (action.kind === "noShow") {
+    return {
+      title: "Mark this trip as a No Show?",
+      body: (
+        <>
+          {row.id} will be marked as a No Show and its requestor notified. This
+          cannot be undone from here, though a no-show can be reverted back to
+          Approved afterward if the passenger turns up late.
+        </>
+      ),
+      confirmLabel: "Mark No Show",
+      confirmingLabel: "Marking…",
+      tone: "destructive",
+    };
+  }
+  return {
+    title: "Revert to Approved?",
+    body: (
+      <>{row.id} will be set back to Approved and its requestor notified.</>
+    ),
+    confirmLabel: "Revert to Approved",
+    confirmingLabel: "Reverting…",
+    tone: "default",
+  };
 }
 
 function emptyTitle(filter: AdminFilter): string {

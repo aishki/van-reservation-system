@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EM_DASH } from "@/lib/tz";
 import { blankAdminFilter } from "@/modules/reservations/admin-filters";
@@ -70,6 +76,9 @@ describe("RequestTable driver and van columns", () => {
         onOpen={noop}
         onDecide={noop}
         onReassign={noop}
+        onCancel={noop}
+        onNoShow={noop}
+        onRevertNoShow={noop}
         sort={blankAdminFilter().sort.pending}
         onSort={noop}
       />,
@@ -88,6 +97,9 @@ describe("RequestTable driver and van columns", () => {
         onOpen={noop}
         onDecide={noop}
         onReassign={noop}
+        onCancel={noop}
+        onNoShow={noop}
+        onRevertNoShow={noop}
         sort={blankAdminFilter().sort.pending}
         onSort={noop}
       />,
@@ -117,6 +129,9 @@ describe("RequestTable driver and van columns", () => {
         onOpen={noop}
         onDecide={noop}
         onReassign={noop}
+        onCancel={noop}
+        onNoShow={noop}
+        onRevertNoShow={noop}
         sort={blankAdminFilter().sort.pending}
         onSort={noop}
       />,
@@ -138,6 +153,9 @@ describe("RequestTable purpose and details columns", () => {
         onOpen={noop}
         onDecide={noop}
         onReassign={noop}
+        onCancel={noop}
+        onNoShow={noop}
+        onRevertNoShow={noop}
         sort={blankAdminFilter().sort.pending}
         onSort={noop}
       />,
@@ -163,6 +181,9 @@ describe("RequestTable sortable headers", () => {
         onOpen={noop}
         onDecide={noop}
         onReassign={noop}
+        onCancel={noop}
+        onNoShow={noop}
+        onRevertNoShow={noop}
         sort={sort}
         onSort={onSort}
       />,
@@ -203,5 +224,139 @@ describe("RequestTable sortable headers", () => {
     expect(screen.queryByRole("columnheader", { name: /Last Updated/ })).toBe(
       null,
     );
+  });
+});
+
+describe("RequestTable No Show and Cancel actions", () => {
+  function menuFor(reference: string) {
+    fireEvent.click(
+      screen.getByRole("button", { name: `Actions for ${reference}` }),
+    );
+    return within(screen.getByRole("menu"));
+  }
+
+  it("only offers Mark No Show on an approved request", () => {
+    render(
+      <RequestTable
+        rows={[row({ id: "REQ-1", status: "Pending" })]}
+        tab="pending"
+        openId={null}
+        onOpen={noop}
+        onDecide={noop}
+        onReassign={noop}
+        onCancel={noop}
+        onNoShow={noop}
+        onRevertNoShow={noop}
+        sort={blankAdminFilter().sort.pending}
+        onSort={noop}
+      />,
+    );
+    const item = menuFor("REQ-1").getByRole("menuitem", {
+      name: "Mark No Show",
+    });
+    expect(item).toHaveProperty("disabled", true);
+  });
+
+  it("enables Mark No Show on an approved request and calls back on select", () => {
+    const onNoShow = vi.fn();
+    render(
+      <RequestTable
+        rows={[row({ id: "REQ-1", status: "Approved" })]}
+        tab="all"
+        openId={null}
+        onOpen={noop}
+        onDecide={noop}
+        onReassign={noop}
+        onCancel={noop}
+        onNoShow={onNoShow}
+        onRevertNoShow={noop}
+        sort={blankAdminFilter().sort.all}
+        onSort={noop}
+      />,
+    );
+    const menu = menuFor("REQ-1");
+    const item = menu.getByRole("menuitem", { name: "Mark No Show" });
+    expect(item).toHaveProperty("disabled", false);
+    fireEvent.click(item);
+    expect(onNoShow).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "REQ-1" }),
+    );
+  });
+
+  it("only offers Revert to Approved on a request already marked No Show", () => {
+    render(
+      <RequestTable
+        rows={[
+          row({ id: "REQ-1", status: "Approved" }),
+          row({ id: "REQ-2", status: "No Show" }),
+        ]}
+        tab="all"
+        openId={null}
+        onOpen={noop}
+        onDecide={noop}
+        onReassign={noop}
+        onCancel={noop}
+        onNoShow={noop}
+        onRevertNoShow={noop}
+        sort={blankAdminFilter().sort.all}
+        onSort={noop}
+      />,
+    );
+    expect(
+      menuFor("REQ-1").getByRole("menuitem", { name: "Revert to Approved" }),
+    ).toHaveProperty("disabled", true);
+    fireEvent.pointerDown(document.body); // close the first menu before opening the next
+    expect(
+      menuFor("REQ-2").getByRole("menuitem", { name: "Revert to Approved" }),
+    ).toHaveProperty("disabled", false);
+  });
+
+  it("offers Cancel trip on both a pending and an approved request", () => {
+    render(
+      <RequestTable
+        rows={[
+          row({ id: "REQ-1", status: "Pending" }),
+          row({ id: "REQ-2", status: "Approved" }),
+        ]}
+        tab="all"
+        openId={null}
+        onOpen={noop}
+        onDecide={noop}
+        onReassign={noop}
+        onCancel={noop}
+        onNoShow={noop}
+        onRevertNoShow={noop}
+        sort={blankAdminFilter().sort.all}
+        onSort={noop}
+      />,
+    );
+    expect(
+      menuFor("REQ-1").getByRole("menuitem", { name: "Cancel trip" }),
+    ).toHaveProperty("disabled", false);
+    fireEvent.pointerDown(document.body);
+    expect(
+      menuFor("REQ-2").getByRole("menuitem", { name: "Cancel trip" }),
+    ).toHaveProperty("disabled", false);
+  });
+
+  it("disables Cancel trip on a rejected or cancelled request", () => {
+    render(
+      <RequestTable
+        rows={[row({ id: "REQ-1", status: "Rejected" })]}
+        tab="all"
+        openId={null}
+        onOpen={noop}
+        onDecide={noop}
+        onReassign={noop}
+        onCancel={noop}
+        onNoShow={noop}
+        onRevertNoShow={noop}
+        sort={blankAdminFilter().sort.all}
+        onSort={noop}
+      />,
+    );
+    expect(
+      menuFor("REQ-1").getByRole("menuitem", { name: "Cancel trip" }),
+    ).toHaveProperty("disabled", true);
   });
 });
