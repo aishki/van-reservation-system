@@ -158,7 +158,29 @@ interface PassengerRowProps {
   onRemove: () => void;
 }
 
-/** One passenger row: a name and an optional email, both typed by hand. */
+/**
+ * The column template every one of this row's three grids shares, so a
+ * name/email/avatar/remove-button lines up across all three regardless of
+ * how much (or how little) content each grid holds.
+ */
+const ROW_GRID =
+  "grid grid-cols-[32px_1fr] gap-3 md:grid-cols-[32px_1fr_1fr_34px]";
+
+/**
+ * One passenger row: a name and an optional email, both typed by hand.
+ *
+ * THREE stacked grids, not one — labels, then controls, then an optional
+ * error line — all sharing `ROW_GRID`. A single grid with the error message
+ * living inside the email cell was the original shape, but CSS Grid sizes
+ * every row to its TALLEST item: the moment the email cell grew an error
+ * line, `items-end` pushed the avatar, the name field and the remove button
+ * down to match, so a bad email visibly knocked the whole row out of
+ * alignment with itself. Isolating the error into its own grid removes it
+ * from the controls row's height calculation entirely — the controls row is
+ * always exactly the height of an input, so `items-center` there centers the
+ * avatar and remove button against the input precisely, with or without an
+ * error showing.
+ */
 function PassengerRow({
   passenger,
   index,
@@ -176,7 +198,18 @@ function PassengerRow({
 
   return (
     <div>
-      <div className="grid grid-cols-[32px_1fr] items-end gap-3 md:grid-cols-[32px_1fr_1fr_34px]">
+      <div className={ROW_GRID}>
+        <span aria-hidden="true" />
+        <label htmlFor={nameId} className={FIELD_LABEL_SM}>
+          Passenger Name <span className="text-error">*</span>
+        </label>
+        <label htmlFor={emailId} className={FIELD_LABEL_SM}>
+          Passenger Email
+        </label>
+        <span aria-hidden="true" />
+      </div>
+
+      <div className={cn(ROW_GRID, "items-center")}>
         <span
           aria-hidden="true"
           className="flex size-8 items-center justify-center rounded-pill bg-brand-tint text-sm font-semibold text-brand"
@@ -184,43 +217,28 @@ function PassengerRow({
           {index + 1}
         </span>
 
-        <div>
-          <label htmlFor={nameId} className={FIELD_LABEL_SM}>
-            Passenger Name <span className="text-error">*</span>
-          </label>
-          <WizardComboInput
-            id={nameId}
-            type="text"
-            value={passenger.name}
-            suggestions={nameSuggestions}
-            placeholder="Juan Dela Cruz"
-            invalid={row.name}
-            onChange={(name) => onChange({ name })}
-            className={cn(FIELD_SM, fieldBorder(row.name), "mt-1.5")}
-          />
-        </div>
+        <WizardComboInput
+          id={nameId}
+          type="text"
+          value={passenger.name}
+          suggestions={nameSuggestions}
+          placeholder="Juan Dela Cruz"
+          invalid={row.name}
+          onChange={(name) => onChange({ name })}
+          className={cn(FIELD_SM, fieldBorder(row.name))}
+        />
 
-        <div>
-          <label htmlFor={emailId} className={FIELD_LABEL_SM}>
-            Passenger Email
-          </label>
-          <WizardComboInput
-            id={emailId}
-            type="email"
-            value={passenger.email}
-            suggestions={emailSuggestions}
-            placeholder="name@example.com (optional)"
-            invalid={row.email}
-            aria-describedby={row.email ? emailErrorId : undefined}
-            onChange={(email) => onChange({ email })}
-            className={cn(FIELD_SM, fieldBorder(row.email), "mt-1.5")}
-          />
-          {row.email && (
-            <p id={emailErrorId} role="alert" className={FIELD_ERROR}>
-              {MESSAGES.passengerEmailFormat}
-            </p>
-          )}
-        </div>
+        <WizardComboInput
+          id={emailId}
+          type="email"
+          value={passenger.email}
+          suggestions={emailSuggestions}
+          placeholder="name@example.com (optional)"
+          invalid={row.email}
+          aria-describedby={row.email ? emailErrorId : undefined}
+          onChange={(email) => onChange({ email })}
+          className={cn(FIELD_SM, fieldBorder(row.email))}
+        />
 
         <Hint
           content="A trip needs at least one passenger."
@@ -242,6 +260,17 @@ function PassengerRow({
           </button>
         </Hint>
       </div>
+
+      {row.email && (
+        <div className={cn(ROW_GRID, "mt-1")}>
+          <span aria-hidden="true" />
+          <span aria-hidden="true" />
+          <p id={emailErrorId} role="alert" className={FIELD_ERROR}>
+            {MESSAGES.passengerEmailFormat}
+          </p>
+          <span aria-hidden="true" />
+        </div>
+      )}
     </div>
   );
 }

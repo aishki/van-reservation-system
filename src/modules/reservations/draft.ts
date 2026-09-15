@@ -290,7 +290,12 @@ export function isDraftStepValid(errors: DraftErrors): boolean {
       trip.purpose === undefined &&
       trip.details === undefined &&
       trip.towerHead === undefined &&
-      trip.passengers === undefined &&
+      // NOT `trip.passengers === undefined`: that string is purely the
+      // BLOCK-level message to display, and a bad email with no bad name
+      // deliberately leaves it unset — its own per-row message already
+      // covers it (see `validateTrips`). The actual gate is every row's own
+      // flags, independent of whether there happens to be a block message.
+      trip.passengerRows.every((row) => !row.name && !row.email) &&
       trip.schedule === undefined &&
       Object.keys(trip.missing).length === 0,
   );

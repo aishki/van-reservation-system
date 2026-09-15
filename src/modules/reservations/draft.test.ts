@@ -428,4 +428,19 @@ describe("isDraftStepValid", () => {
     ];
     expect(validateStep(draft, 3).trips[0].passengerRows).toHaveLength(3);
   });
+
+  it("blocks the step on a malformed email even with no bad name anywhere", () => {
+    // Regression: `trip.passengers` (the block-level MESSAGE) is deliberately
+    // left unset for an email-only problem — its own per-row message already
+    // covers it. Gating on that string instead of the row flags let a bad
+    // email through silently, because nothing ever set `showErrors`.
+    const draft = validDraft();
+    draft.trips[0].passengers = [
+      { name: "Dela Cruz, Juan", email: "not-an-email" },
+    ];
+    const errors = validateStep(draft, 3);
+
+    expect(errors.trips[0].passengers).toBeUndefined();
+    expect(isDraftStepValid(errors)).toBe(false);
+  });
 });
