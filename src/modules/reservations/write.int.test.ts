@@ -7,6 +7,8 @@ import { CHANGED_TRIP_DETAILS_REMARK } from "@/modules/reservations/types";
 import {
   cancelReservation,
   decideReservation,
+  markNoShow,
+  revertNoShow,
   submitBooking,
   WRITE_MESSAGES,
   type WriteActor,
@@ -2239,5 +2241,125 @@ describe("cancelReservation notifications", () => {
     expect((passengerMail[0].payload as { status: string }).status).toBe(
       "Cancelled",
     );
+  });
+});
+
+describe("markNoShow / revertNoShow", () => {
+  /** A submitted request, approved with a roster driver and van. Version 2. */
+  async function approved() {
+    const reference = await submitted();
+    const result = await decideReservation(db, admin, reference, {
+      version: 1,
+      decision: "approve",
+      rejectionReason: "",
+      driver: rosterDriver(driverId),
+      van: rosterVan(vanId),
+      trip: null,
+      costing: null,
+    });
+    if (!result.ok) throw new Error("approval failed");
+    return reference;
+  }
+
+  it("marks an approved trip No Show and writes the event", async () => {
+    const reference = await approved();
+    const result = await markNoShow(db, admin, reference);
+    expect(result.ok).toBe(true);
+
+    const row = await rowOf(reference);
+    expect(row.status).toBe("no_show");
+    expect(row.version).toBe(3);
+
+    const types = (await eventsOf(reference)).map((e) => e.event_type);
+    expect(types).toContain("no_show");
+  });
+
+  it("leaves the driver and van assignment untouched", async () => {
+    const reference = await approved();
+    await markNoShow(db, admin, reference);
+
+    const row = await rowOf(reference);
+    expect(row.assigned_driver_id).toBe(driverId);
+    expect(row.assigned_van_id).toBe(vanId);
+  });
+
+  it("refuses to mark a pending request", async () => {
+    const reference = await submitted();
+    const result = await markNoShow(db, admin, reference);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("INVALID_TRANSITION");
+    expect(result.error.message).toBe(WRITE_MESSAGES.notNoShowEligible);
+  });
+
+  it("refuses to mark an already-cancelled request", async () => {
+    const reference = await submitted();
+    await cancelReservation(db, requestor, reference, "Not needed.");
+    const result = await markNoShow(db, admin, reference);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("INVALID_TRANSITION");
+  });
+
+  it("reverts a no-show back to plain Approved", async () => {
+    const reference = await approved();
+    await markNoShow(db, admin, reference);
+
+    const result = await revertNoShow(db, admin, reference);
+    expect(result.ok).toBe(true);
+
+    const row = await rowOf(reference);
+    expect(row.status).toBe("approved");
+    expect(row.version).toBe(4);
+
+    const types = (await eventsOf(reference)).map((e) => e.event_type);
+    expect(types).toContain("no_show_reverted");
+  });
+
+  it("refuses to revert a trip that was never marked No Show", async () => {
+    const reference = await approved();
+    const result = await revertNoShow(db, admin, reference);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("INVALID_TRANSITION");
+    expect(result.error.message).toBe(WRITE_MESSAGES.noShowNotReversible);
+  });
+
+  it("refuses an unknown reference", async () => {
+    const result = await markNoShow(db, admin, "VR-2026-999999");
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("NOT_FOUND");
+  });
+
+  it("mails the requestor, cc's the admins, and mails the trip's passenger", async () => {
+    const reference = await approved();
+    await markNoShow(db, admin, reference);
+
+    const queued = await queuedFor(reference);
+    const toRequestor = excludingPassengers(queued).find(
+      (q) => q.event === "no_show",
+    );
+    expect(toRequestor?.template).toBe("booking-status-change");
+    expect(toRequestor?.recipient).toBe(requestor.email);
+    expect(toRequestor?.cc).toContain("zz.admin@wnotify.invalid");
+    expect((toRequestor?.payload as { status: string }).status).toBe("No Show");
+
+    const toPassenger = passengerCopies(queued).find(
+      (q) => q.event === "no_show",
+    );
+    expect(toPassenger?.recipient).toBe("arielle.jimera@carelon.com");
+    expect(toPassenger?.cc).toEqual([]);
+  });
+
+  it("mails the requestor an Approved notice again on revert", async () => {
+    const reference = await approved();
+    await markNoShow(db, admin, reference);
+    await revertNoShow(db, admin, reference);
+
+    const queued = excludingPassengers(await queuedFor(reference));
+    const reverted = queued.find((q) => q.event === "no_show_reverted");
+    expect(reverted?.recipient).toBe(requestor.email);
+    expect((reverted?.payload as { status: string }).status).toBe("Approved");
   });
 });

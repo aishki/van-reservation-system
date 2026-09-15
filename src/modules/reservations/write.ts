@@ -40,8 +40,10 @@ import {
 import { isTripPurpose } from "@/modules/reservations/reference";
 import { nextReferenceNo } from "@/modules/reservations/reference-no";
 import {
+  canRevertNoShow,
   type DriverInput,
   isCancellable,
+  isNoShowEligible,
   isReassignable,
   isRequestorEditable,
   type ReservationStatus,
@@ -92,6 +94,8 @@ export const WRITE_MESSAGES = {
   reassignOnly:
     "An approved request can only have its driver, van, vendor or cost changed.",
   notCancellable: "Only a pending or approved request can be cancelled.",
+  notNoShowEligible: "Only an approved request can be marked as a no-show.",
+  noShowNotReversible: "Only a request marked No Show can be reverted.",
   versionConflict:
     "Someone else updated this request while you had it open. Reload and try again.",
   unknownDriver: "That driver is not on the active roster.",
@@ -485,6 +489,232 @@ export async function cancelReservation(
             cancelledBy: actor.role,
             cancellationReason,
           },
+        },
+        ...passengerNotices,
+      ],
+    });
+
+    return ok(null);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// No Show
+// ---------------------------------------------------------------------------
+
+/**
+ * Marks an approved trip as a no-show: the van and driver were committed, but
+ * no passenger boarded. Admin-only — gated at the route with `requireAdmin()`,
+ * the same split `decideReservation` uses, rather than `cancelReservation`'s
+ * ownership check. This is a determination about what happened on the day,
+ * not something a requestor reports about their own trip.
+ *
+ * Leaves the row's driver/van columns untouched, so `revertNoShow` has
+ * everything it needs to restore the trip exactly as it was.
+ */
+export async function markNoShow(
+  db: Kysely<DB>,
+  actor: WriteActor,
+  referenceNo: string,
+): Promise<Result<null, WriteFailure>> {
+  return db.transaction().execute(async (trx) => {
+    const row = await trx
+      .selectFrom("reservations")
+      .select([
+        "id",
+        "reference_no",
+        "site",
+        "requestor_user_id",
+        "requestor_email",
+        "status",
+        "version",
+      ])
+      .where("reference_no", "=", referenceNo)
+      .executeTakeFirst();
+
+    if (row === undefined) return err(notFound());
+
+    if (!isNoShowEligible(statusFromDb(row.status))) {
+      return err({
+        code: "INVALID_TRANSITION",
+        message: WRITE_MESSAGES.notNoShowEligible,
+      });
+    }
+
+    const result = await trx
+      .updateTable("reservations")
+      .set({
+        status: STATUS_TO_DB["No Show"],
+        version: row.version + 1,
+        updated_at: new Date(),
+      })
+      .where("id", "=", row.id)
+      // Same compare-and-set as every other write here: a guard against a
+      // concurrent change landing between this transaction's SELECT and its
+      // UPDATE, not a version the caller supplies.
+      .where("version", "=", row.version)
+      .executeTakeFirst();
+
+    if (Number(result.numUpdatedRows) === 0) {
+      return err({
+        code: "VERSION_CONFLICT",
+        message: WRITE_MESSAGES.versionConflict,
+      });
+    }
+
+    await trx
+      .insertInto("reservation_events")
+      .values({
+        reservation_id: row.id,
+        actor_user_id: actor.userId,
+        actor_name: actor.name,
+        actor_role: actor.role,
+        event_type: "no_show",
+      })
+      .execute();
+
+    const info = await loadRequestInformation(trx, row.id);
+    const manageUrl = `${env().APP_URL}/manage`;
+    const passengerNotices: EmailChannel[] = passengerEmailsOf(info).map(
+      (email) => ({
+        template: "booking-status-change",
+        recipient: email,
+        payload: {
+          ...info,
+          manageUrl,
+          status: "No Show",
+          audience: "passenger",
+        },
+      }),
+    );
+
+    await recordNotification(trx, {
+      reservationId: row.id,
+      event: "no_show",
+      title: "Van reservation marked No Show",
+      body: `${row.reference_no} was marked as a no-show.`,
+      link: `/manage?ref=${row.reference_no}`,
+      recipientUserId: row.requestor_user_id,
+      emails: [
+        {
+          template: "booking-status-change",
+          recipient: row.requestor_email,
+          cc: await adminRecipients(
+            trx,
+            siteFromDb(row.site),
+            row.requestor_email,
+          ),
+          payload: { ...info, manageUrl, status: "No Show" },
+        },
+        ...passengerNotices,
+      ],
+    });
+
+    return ok(null);
+  });
+}
+
+/**
+ * Reverts a no-show back to Approved — the passenger arrived late, or the
+ * mark was a mistake. `markNoShow` never touches the driver/van columns, so
+ * this transition needs nothing beyond the status flip itself.
+ *
+ * Always lands on plain `Approved`, even if the trip was
+ * `Approved - Driver Reassigned` before it was marked: that spelling is admin
+ * bookkeeping only (`requestorFacingStatus` already collapses it on every
+ * requestor-facing path), and losing it costs nothing — `isReassignable`
+ * admits `Approved` exactly as it admits the reassigned spelling.
+ */
+export async function revertNoShow(
+  db: Kysely<DB>,
+  actor: WriteActor,
+  referenceNo: string,
+): Promise<Result<null, WriteFailure>> {
+  return db.transaction().execute(async (trx) => {
+    const row = await trx
+      .selectFrom("reservations")
+      .select([
+        "id",
+        "reference_no",
+        "site",
+        "requestor_user_id",
+        "requestor_email",
+        "status",
+        "version",
+      ])
+      .where("reference_no", "=", referenceNo)
+      .executeTakeFirst();
+
+    if (row === undefined) return err(notFound());
+
+    if (!canRevertNoShow(statusFromDb(row.status))) {
+      return err({
+        code: "INVALID_TRANSITION",
+        message: WRITE_MESSAGES.noShowNotReversible,
+      });
+    }
+
+    const result = await trx
+      .updateTable("reservations")
+      .set({
+        status: STATUS_TO_DB.Approved,
+        version: row.version + 1,
+        updated_at: new Date(),
+      })
+      .where("id", "=", row.id)
+      .where("version", "=", row.version)
+      .executeTakeFirst();
+
+    if (Number(result.numUpdatedRows) === 0) {
+      return err({
+        code: "VERSION_CONFLICT",
+        message: WRITE_MESSAGES.versionConflict,
+      });
+    }
+
+    await trx
+      .insertInto("reservation_events")
+      .values({
+        reservation_id: row.id,
+        actor_user_id: actor.userId,
+        actor_name: actor.name,
+        actor_role: actor.role,
+        event_type: "no_show_reverted",
+      })
+      .execute();
+
+    const info = await loadRequestInformation(trx, row.id);
+    const manageUrl = `${env().APP_URL}/manage`;
+    const passengerNotices: EmailChannel[] = passengerEmailsOf(info).map(
+      (email) => ({
+        template: "booking-status-change",
+        recipient: email,
+        payload: {
+          ...info,
+          manageUrl,
+          status: "Approved",
+          audience: "passenger",
+        },
+      }),
+    );
+
+    await recordNotification(trx, {
+      reservationId: row.id,
+      event: "no_show_reverted",
+      title: "Van reservation approved",
+      body: `${row.reference_no} is approved again — the no-show mark was reverted.`,
+      link: `/manage?ref=${row.reference_no}`,
+      recipientUserId: row.requestor_user_id,
+      emails: [
+        {
+          template: "booking-status-change",
+          recipient: row.requestor_email,
+          cc: await adminRecipients(
+            trx,
+            siteFromDb(row.site),
+            row.requestor_email,
+          ),
+          payload: { ...info, manageUrl, status: "Approved" },
         },
         ...passengerNotices,
       ],

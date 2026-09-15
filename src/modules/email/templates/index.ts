@@ -145,6 +145,7 @@ const TEMPLATES: Record<string, TemplateEntry<any>> = {
         cancelledBy: z.enum(["associate", "admin_support"]),
         cancellationReason: text,
       }),
+      withManageUrl.extend({ status: z.literal("No Show") }),
     ]) as unknown as z.ZodType<BookingStatusChangeInput>,
     renderBookingStatusChange,
   ),

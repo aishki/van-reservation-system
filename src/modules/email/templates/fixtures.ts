@@ -200,6 +200,11 @@ const cancelledByAdmin: BookingStatusChangeInput = {
   cancellationReason: "Cancelled by Admin Support — fleet maintenance.",
 };
 
+const noShow: BookingStatusChangeInput = {
+  ...statusCommon,
+  status: "No Show",
+};
+
 /** Two trips, two different vans — the case the driver cards exist for. */
 const driverAssigned: DriverAssignmentInput = {
   ...statusCommon,
@@ -304,6 +309,12 @@ export const PREVIEWS: Record<string, Preview> = {
     to: REQUESTOR.email,
     cc: ILOILO_ADMINS,
     render: () => renderBookingStatusChange(cancelledByAdmin),
+  },
+  "status-no-show": {
+    title: "#3 Status — No Show (requestor, admins cc'd)",
+    to: REQUESTOR.email,
+    cc: ILOILO_ADMINS,
+    render: () => renderBookingStatusChange(noShow),
   },
   "driver-assigned": {
     title: "#4 Van assignment set (requestor)",

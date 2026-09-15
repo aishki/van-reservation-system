@@ -37,14 +37,16 @@ import { RIDE_MODE_LABELS, type RideMode } from "@/modules/reservations/types";
  * retryable step (`email/dispatch.ts`) whose failure is visible on the row.
  */
 
-/** The six transitions a requestor is notified about. Mirrors the table's CHECK. */
+/** The eight transitions a requestor is notified about. Mirrors the table's CHECK. */
 export type NotificationEvent =
   | "submitted"
   | "approved"
   | "rejected"
   | "cancelled"
   | "driver_assigned"
-  | "driver_changed";
+  | "driver_changed"
+  | "no_show"
+  | "no_show_reverted";
 
 export type NotificationTemplate =
   | "booking-submitted"

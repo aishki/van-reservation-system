@@ -36,6 +36,7 @@ describe("renderTemplate", () => {
         "Juan Cruz",
       ],
       ["booking-status-change", { ...manage, status: "Approved" }, "VR-1042"],
+      ["booking-status-change", { ...manage, status: "No Show" }, "VR-1042"],
       [
         "driver-assignment",
         {

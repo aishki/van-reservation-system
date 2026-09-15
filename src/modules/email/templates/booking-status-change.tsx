@@ -10,12 +10,18 @@ import { styles } from "@/modules/email/templates/styles";
 import type { EmailBody } from "@/modules/email/transport";
 
 /**
- * One template for every decided status: Approved, Rejected, Cancelled.
+ * One template for every decided status: Approved, Rejected, Cancelled, No
+ * Show.
  *
- * These three are the same email — "your request moved to X, log in for the full
+ * These are the same email — "your request moved to X, log in for the full
  * details" — differing only in a heading, a sentence, and whether there is a
- * reason to quote. Three files would be three copies of one layout, drifting the
+ * reason to quote. Separate files would be copies of one layout, drifting the
  * first time the footer changed.
+ *
+ * Reverting a no-show back to Approved reuses `{ status: "Approved" }` rather
+ * than a fifth variant: it IS the approved-outcome email, sent again because
+ * the outcome is true again. Nothing about the approved copy claims to be a
+ * FIRST approval.
  *
  * Driver assignment is deliberately NOT here (`driver-assignment.tsx`). It is not
  * a status change — the status stays Approved — and it needs the van's details,
@@ -32,7 +38,14 @@ type StatusDetail =
       /** Mirrors `cancelled_by_role`; decides whose name appears. */
       cancelledBy: "associate" | "admin_support";
       cancellationReason: string;
-    };
+    }
+  /**
+   * The van and driver were committed; the passenger never boarded. No
+   * reason field — unlike a rejection or a cancellation, there is nothing
+   * for the admin to explain, only a fact to record. Reversible: see the
+   * module comment above.
+   */
+  | { status: "No Show" };
 
 export type BookingStatusChangeInput = RequestInformationInput & {
   /** Absolute link back to the requestor's bookings (built from APP_URL). */
@@ -41,11 +54,17 @@ export type BookingStatusChangeInput = RequestInformationInput & {
   audience?: EmailAudience;
 } & StatusDetail;
 
-/** Tint per outcome: approval reads as good news, rejection as bad, cancellation as neutral. */
+/**
+ * Tint per outcome: approval reads as good news, rejection as bad, cancellation
+ * as neutral. No Show has no `reason` block (see `reasonOf`) so this entry is
+ * never actually painted — it exists because `TONE[input.status]` is indexed
+ * over all four statuses regardless.
+ */
 const TONE = {
   Approved: { bg: "#eef7f0", accent: "#1c7a3e" },
   Rejected: { bg: "#fdf0f0", accent: "#b3261e" },
   Cancelled: { bg: "#f5f5f5", accent: "#666666" },
+  "No Show": { bg: "#fdf3e2", accent: "#a15c00" },
 } as const;
 
 function reasonOf(input: BookingStatusChangeInput): string | null {
@@ -72,6 +91,16 @@ function leadOf(input: BookingStatusChangeInput) {
       </>
     );
   }
+  if (input.status === "No Show") {
+    return (
+      <>
+        Hi {input.requestor.name}, your van reservation has been marked as a{" "}
+        <strong>no-show</strong> — the van and driver were ready, but no
+        passenger boarded. Log in to the Van Reservation website to see the full
+        details.
+      </>
+    );
+  }
   return input.cancelledBy === "admin_support" ? (
     <>
       Hi {input.requestor.name}, your van reservation has been cancelled by{" "}
@@ -91,6 +120,7 @@ const HEADINGS = {
   Approved: "Van reservation approved",
   Rejected: "Van reservation not approved",
   Cancelled: "Van reservation cancelled",
+  "No Show": "Van reservation marked No Show",
 } as const;
 
 export function BookingStatusChangeEmail(input: BookingStatusChangeInput) {

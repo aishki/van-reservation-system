@@ -40,6 +40,7 @@ const cancelled: BookingStatusChangeInput = {
   cancelledBy: "associate",
   cancellationReason: "Trip no longer needed.",
 };
+const noShow: BookingStatusChangeInput = { ...common, status: "No Show" };
 
 describe("renderBookingStatusChange", () => {
   it("names the reference and the new status in the subject", async () => {
@@ -52,10 +53,13 @@ describe("renderBookingStatusChange", () => {
     expect((await renderBookingStatusChange(cancelled)).subject).toBe(
       "Van reservation VR-1042 — Cancelled",
     );
+    expect((await renderBookingStatusChange(noShow)).subject).toBe(
+      "Van reservation VR-1042 — No Show",
+    );
   });
 
   it("points every status at the site for the full details", async () => {
-    for (const input of [approved, rejected, cancelled]) {
+    for (const input of [approved, rejected, cancelled, noShow]) {
       const { text } = await renderBookingStatusChange(input);
       expect(text).toContain("full details");
       expect(text).toContain("http://localhost:3000/manage");
@@ -85,8 +89,16 @@ describe("renderBookingStatusChange", () => {
     expect(html).not.toContain("Reason");
   });
 
+  // A no-show is a fact to record, not something the admin explains — unlike
+  // a rejection or a cancellation, there is no reason to quote.
+  it("shows no reason block for a no-show either", async () => {
+    const { html, text } = await renderBookingStatusChange(noShow);
+    expect(html).not.toContain("Reason");
+    expect(text).toContain("no-show");
+  });
+
   it("carries the request information for every status", async () => {
-    for (const input of [approved, rejected, cancelled]) {
+    for (const input of [approved, rejected, cancelled, noShow]) {
       const { html } = await renderBookingStatusChange(input);
       for (const value of [
         "VR-1042",
