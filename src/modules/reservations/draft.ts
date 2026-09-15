@@ -240,9 +240,11 @@ function validateTrips(draft: BookingDraft, errors: DraftErrors): void {
       const badEmail =
         passenger.email.trim() !== "" && !isValidEmail(passenger.email);
       tripErrors.passengerRows[row] = { name: badName, email: badEmail };
+      // Only a blank name sets the block-level message: a bad email already
+      // gets its OWN message right under that field (see PassengerRow), and
+      // repeating the identical sentence again here read as the same error
+      // shown twice — which, next to that field, it was.
       if (badName) tripErrors.passengers = MESSAGES.passengersIncomplete;
-      else if (badEmail && tripErrors.passengers === undefined)
-        tripErrors.passengers = MESSAGES.passengerEmailFormat;
     });
 
     // `.trim()` matters: the design document checks falsiness, so a

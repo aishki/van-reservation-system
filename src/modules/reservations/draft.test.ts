@@ -242,14 +242,18 @@ describe("step 3 — trip details", () => {
     expect(errors.passengers).toBeUndefined();
   });
 
-  it("flags a malformed email even with no bad name in the trip", () => {
+  it("flags a malformed email on its row without a block-level message", () => {
     const draft = validDraft();
     draft.trips[0].passengers = [
       { name: "Dela Cruz, Juan", email: "not-an-email" },
     ];
-    expect(validateStep(draft, 3).trips[0].passengers).toBe(
-      MESSAGES.passengerEmailFormat,
-    );
+    const errors = validateStep(draft, 3).trips[0];
+
+    expect(errors.passengerRows[0]).toEqual({ name: false, email: true });
+    // No block-level message here: a bad email already gets its OWN message
+    // right under that field (`PassengerRow`), so `errors.passengers` staying
+    // undefined is what keeps the two from saying the same sentence twice.
+    expect(errors.passengers).toBeUndefined();
   });
 
   it("validates every trip independently, not just the first", () => {

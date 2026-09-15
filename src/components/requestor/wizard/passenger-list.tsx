@@ -172,6 +172,7 @@ function PassengerRow({
 }: PassengerRowProps) {
   const nameId = useId();
   const emailId = useId();
+  const emailErrorId = useId();
 
   return (
     <div>
@@ -210,9 +211,15 @@ function PassengerRow({
             suggestions={emailSuggestions}
             placeholder="name@example.com (optional)"
             invalid={row.email}
+            aria-describedby={row.email ? emailErrorId : undefined}
             onChange={(email) => onChange({ email })}
             className={cn(FIELD_SM, fieldBorder(row.email), "mt-1.5")}
           />
+          {row.email && (
+            <p id={emailErrorId} role="alert" className={FIELD_ERROR}>
+              {MESSAGES.passengerEmailFormat}
+            </p>
+          )}
         </div>
 
         <Hint
@@ -235,12 +242,6 @@ function PassengerRow({
           </button>
         </Hint>
       </div>
-
-      {row.email && (
-        <p role="alert" className={FIELD_ERROR}>
-          {MESSAGES.passengerEmailFormat}
-        </p>
-      )}
     </div>
   );
 }
