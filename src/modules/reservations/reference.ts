@@ -89,16 +89,22 @@ export function isTower(value: unknown): value is Tower {
  * only exists in a TypeScript array cannot be looked up, deactivated, or
  * notified, and a leaver stays selectable forever.
  *
- * Names match the design document's own sample data so the two can be compared
- * side by side. Sorted by surname, which is how the design shows them.
+ * Client-supplied list of approving Tower Heads for the dedicated standby
+ * van, given 2026-09-15, replacing the earlier placeholder names. In the
+ * order the client gave them, not alphabetized.
  *
  * SUNSET: delete this constant when `/api/reservations/tower-heads` exists.
  * `select-tower-heads.int.test.ts` should replace `reference.test.ts`'s coverage
  * of it at the same time.
  */
 export const DEV_TOWER_HEADS = [
-  "Abanto, Norlyn",
-  "Buenaflor, Zara",
-  "Cruz, Ivan",
-  "Jimera, Arielle",
+  "Nicki Agcaoili",
+  "Edward Castro",
+  "Ed Gilman",
+  "Salin Kataria",
+  "Irish Beley",
+  "Jim Lim",
+  "Rae Kintanar",
+  "Andrew Abrenica",
+  "George Pineda",
 ] as const;
