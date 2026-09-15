@@ -318,6 +318,26 @@ export interface PassengerRef {
 }
 
 /**
+ * One requestor's own past values for the wizard's free-text fields, most
+ * recently used first — what the combobox suggestions are built from.
+ *
+ * Scoped to a single requestor on every read (see `getFieldHistory`): this is
+ * a personal autocomplete convenience, not a directory, and must never surface
+ * one requestor's pickup points or passengers to another.
+ *
+ * Purpose and Tower Head are deliberately absent — both are already closed
+ * picklists (`WizardSelect`), not free text, so there is nothing here for
+ * them to suggest.
+ */
+export interface FieldHistory {
+  pickupPoint: string[];
+  dropoffPoint: string[];
+  passengerName: string[];
+  passengerEmail: string[];
+  mobile: string[];
+}
+
+/**
  * Who is driving a trip: someone on the roster, or a one-off hired in for it.
  *
  * `source` is part of the type on purpose. It forces every screen to decide how

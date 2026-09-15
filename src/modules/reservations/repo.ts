@@ -6,6 +6,7 @@ import {
   type AssignedDriver,
   type AssignedVan,
   CHANGED_TRIP_DETAILS_REMARK,
+  type FieldHistory,
   type ReportRow,
   type ReservationDetail,
   type ReservationRow,
@@ -349,4 +350,66 @@ export async function getReservationDetail(
   };
 
   return { requestorUserId: row.requestor_user_id, detail };
+}
+
+/** Suggestions capped here, not just in the UI — an unbounded list is not a shortlist. */
+const FIELD_HISTORY_LIMIT = 8;
+
+/**
+ * One requestor's own past values for the wizard's free-text fields, most
+ * recently used first. See `FieldHistory` for why Purpose and Tower Head are
+ * absent, and why this must always be scoped to a single `requestorUserId`.
+ *
+ * Five independent queries rather than one join fanning out every way: a
+ * passenger row and a trip's pickup/dropoff/mobile are unrelated axes of the
+ * same reservation, and grouping across a join would need `DISTINCT` on
+ * combinations that don't mean anything together.
+ */
+export async function getFieldHistory(
+  db: Kysely<DB>,
+  requestorUserId: string,
+): Promise<FieldHistory> {
+  const reservationColumn = (
+    column: "pickup_location" | "dropoff_location" | "requestor_mobile",
+  ) =>
+    db
+      .selectFrom("reservations")
+      .select(column)
+      .select((eb) => eb.fn.max("created_at").as("last_used"))
+      .where("requestor_user_id", "=", requestorUserId)
+      .where(column, "is not", null)
+      .groupBy(column)
+      .orderBy("last_used", "desc")
+      .limit(FIELD_HISTORY_LIMIT)
+      .execute();
+
+  const passenger = (column: "name" | "email") =>
+    db
+      .selectFrom("reservation_passengers as p")
+      .innerJoin("reservations as r", "r.id", "p.reservation_id")
+      .select(`p.${column}`)
+      .select((eb) => eb.fn.max("r.created_at").as("last_used"))
+      .where("r.requestor_user_id", "=", requestorUserId)
+      .where(`p.${column}`, "is not", null)
+      .groupBy(`p.${column}`)
+      .orderBy("last_used", "desc")
+      .limit(FIELD_HISTORY_LIMIT)
+      .execute();
+
+  const [pickupPoint, dropoffPoint, mobile, passengerName, passengerEmail] =
+    await Promise.all([
+      reservationColumn("pickup_location"),
+      reservationColumn("dropoff_location"),
+      reservationColumn("requestor_mobile"),
+      passenger("name"),
+      passenger("email"),
+    ]);
+
+  return {
+    pickupPoint: pickupPoint.map((r) => r.pickup_location as string),
+    dropoffPoint: dropoffPoint.map((r) => r.dropoff_location as string),
+    mobile: mobile.map((r) => r.requestor_mobile as string),
+    passengerName: passengerName.map((r) => r.name as string),
+    passengerEmail: passengerEmail.map((r) => r.email as string),
+  };
 }

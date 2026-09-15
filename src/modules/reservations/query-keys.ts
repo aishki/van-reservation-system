@@ -15,3 +15,11 @@ export const ADMIN_RESERVATIONS_KEY = ["reservations", "admin"] as const;
 export function reservationDetailKey(reference: string | null | undefined) {
   return ["reservation-detail", reference] as const;
 }
+
+/**
+ * The booking wizard's combobox suggestions, `GET /api/reservations/field-history`.
+ * Not parameterised by user id — the route derives that from the session, and
+ * a cache mistakenly shared across sessions in the same tab is not a
+ * realistic failure mode this app needs to guard against.
+ */
+export const FIELD_HISTORY_KEY = ["field-history"] as const;

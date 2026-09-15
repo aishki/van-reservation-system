@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
+  getFieldHistory,
   getReservationDetail,
   listReservations,
 } from "@/modules/reservations/repo";
@@ -91,6 +92,7 @@ async function insertPickup(
   reference: string,
   userId: string,
   submittedAt: string,
+  locations?: { pickup?: string; dropoff?: string; mobile?: string },
 ) {
   const row = await db
     .insertInto("reservations")
@@ -102,12 +104,12 @@ async function insertPickup(
       requestor_user_id: userId,
       requestor_name: "Jimera, Arielle",
       requestor_email: "arielle.jimera@example.invalid",
-      requestor_mobile: "09567567122",
+      requestor_mobile: locations?.mobile ?? "09567567122",
       purpose: "Travel-Related (Airport Transfers)",
       details: "Repo test pickup trip.",
       start_at: new Date("2026-08-07T22:30:00Z"),
-      pickup_location: "AGT Tower lobby",
-      dropoff_location: "GLS Building",
+      pickup_location: locations?.pickup ?? "AGT Tower lobby",
+      dropoff_location: locations?.dropoff ?? "GLS Building",
       created_at: new Date(submittedAt),
     })
     .returning("id")
@@ -701,5 +703,125 @@ describe("split van and rental assignments", () => {
     expect(found?.detail.vanLabel).toBeNull();
     expect(found?.detail.driverSource).toBeNull();
     expect(found?.detail.vanSource).toBeNull();
+  });
+});
+
+describe("getFieldHistory", () => {
+  async function addPassengers(
+    reservationId: string,
+    passengers: { name: string; email: string | null }[],
+  ) {
+    await db
+      .insertInto("reservation_passengers")
+      .values(
+        passengers.map((p, i) => ({
+          reservation_id: reservationId,
+          name: p.name,
+          email: p.email,
+          position: i + 1,
+        })),
+      )
+      .execute();
+  }
+
+  it("orders each field's suggestions by most recently used, not alphabetically", async () => {
+    const older = await insertPickup(
+      "VR-2026-810001",
+      arielleId,
+      "2026-08-01T01:00:00Z",
+      { pickup: "Zed Tower lobby", dropoff: "Alpha Building" },
+    );
+    const newer = await insertPickup(
+      "VR-2026-810002",
+      arielleId,
+      "2026-08-05T01:00:00Z",
+      { pickup: "Beta Tower lobby", dropoff: "Omega Building" },
+    );
+    await addPassengers(older, [{ name: "Reyes, Ana", email: null }]);
+    await addPassengers(newer, [
+      { name: "Cruz, Juan", email: "juan.cruz@example.invalid" },
+    ]);
+
+    const history = await getFieldHistory(db, arielleId);
+
+    expect(history.pickupPoint).toEqual([
+      "Beta Tower lobby",
+      "Zed Tower lobby",
+    ]);
+    expect(history.dropoffPoint).toEqual(["Omega Building", "Alpha Building"]);
+    expect(history.passengerName).toEqual(["Cruz, Juan", "Reyes, Ana"]);
+    expect(history.passengerEmail).toEqual(["juan.cruz@example.invalid"]);
+  });
+
+  it("orders past mobile numbers by most recently used too", async () => {
+    await insertPickup("VR-2026-810007", arielleId, "2026-08-01T01:00:00Z", {
+      mobile: "09170000001",
+    });
+    await insertPickup("VR-2026-810008", arielleId, "2026-08-05T01:00:00Z", {
+      mobile: "09170000002",
+    });
+
+    const history = await getFieldHistory(db, arielleId);
+
+    expect(history.mobile).toEqual(["09170000002", "09170000001"]);
+  });
+
+  it("collapses a repeated value to one entry, keeping its latest use", async () => {
+    await insertPickup("VR-2026-810003", arielleId, "2026-08-01T01:00:00Z", {
+      pickup: "GLS Tower lobby",
+    });
+    await insertPickup("VR-2026-810004", arielleId, "2026-08-06T01:00:00Z", {
+      pickup: "GLS Tower lobby",
+    });
+
+    const history = await getFieldHistory(db, arielleId);
+
+    expect(history.pickupPoint).toEqual(["GLS Tower lobby"]);
+  });
+
+  it("never surfaces another requestor's values", async () => {
+    const marcoReservation = await insertPickup(
+      "VR-2026-810005",
+      marcoId,
+      "2026-08-01T01:00:00Z",
+      { pickup: "Marco's Tower lobby" },
+    );
+    await addPassengers(marcoReservation, [
+      { name: "Someone Else", email: "someone.else@example.invalid" },
+    ]);
+
+    const history = await getFieldHistory(db, arielleId);
+
+    expect(history.pickupPoint).toEqual([]);
+    expect(history.passengerName).toEqual([]);
+    expect(history.passengerEmail).toEqual([]);
+  });
+
+  it("omits a passenger's email from the list when they don't have one", async () => {
+    const reservation = await insertPickup(
+      "VR-2026-810006",
+      arielleId,
+      "2026-08-01T01:00:00Z",
+    );
+    await addPassengers(reservation, [
+      { name: "No Email Passenger", email: null },
+    ]);
+
+    const history = await getFieldHistory(db, arielleId);
+
+    expect(history.passengerName).toEqual(["No Email Passenger"]);
+    expect(history.passengerEmail).toEqual([]);
+  });
+
+  it("returns every list empty for a requestor with no reservations yet", async () => {
+    const history = await getFieldHistory(db, adminId);
+
+    expect(history).toEqual({
+      pickupPoint: [],
+      dropoffPoint: [],
+      passengerName: [],
+      passengerEmail: [],
+      mobile: [],
+    });
   });
 });

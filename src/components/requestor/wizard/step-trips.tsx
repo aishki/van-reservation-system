@@ -1,8 +1,10 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
+import { useId } from "react";
 import { Hint } from "@/components/common/hint";
 import { PassengerList } from "@/components/requestor/wizard/passenger-list";
+import { WizardComboInput } from "@/components/requestor/wizard/wizard-combo-input";
 import { WizardSelect } from "@/components/requestor/wizard/wizard-select";
 import { WizardTextarea } from "@/components/requestor/wizard/wizard-textarea";
 import {
@@ -14,6 +16,7 @@ import {
   STEP_SUBHEADING,
   STEP_SUBSECTION,
 } from "@/components/requestor/wizard/wizard-theme";
+import { useFieldHistory } from "@/hooks/use-field-history";
 import { cn } from "@/lib/utils";
 import type {
   BookingDraft,
@@ -64,6 +67,7 @@ export function StepTrips({
 }: StepTripsProps) {
   const standby = draft.mode === "standby";
   const onlyOne = draft.trips.length === 1;
+  const history = useFieldHistory();
 
   return (
     <>
@@ -165,12 +169,15 @@ export function StepTrips({
                 <StandbyWindow
                   trip={trip}
                   errors={tripErrors}
+                  pickupPointSuggestions={history.pickupPoint}
                   onChange={(patch) => onTrip(index, patch)}
                 />
               ) : (
                 <PickupSchedule
                   trip={trip}
                   errors={tripErrors}
+                  pickupPointSuggestions={history.pickupPoint}
+                  dropoffPointSuggestions={history.dropoffPoint}
                   onChange={(patch) => onTrip(index, patch)}
                 />
               )}
@@ -204,6 +211,9 @@ interface ScheduleProps {
 
 /**
  * One labelled control. `field` drives both the value and the error border.
+ * `suggestions` is only ever passed for a `type="text"` location field — a
+ * date or time input never gets one, there is nothing meaningful to
+ * autocomplete about a calendar picker.
  *
  * Named `ScheduleInput`, not `ScheduleField` — the latter is the imported union
  * of field names it takes as a prop, and shadowing a type with a component that
@@ -217,33 +227,62 @@ function ScheduleInput({
   label,
   type,
   placeholder,
+  suggestions,
   className,
 }: ScheduleProps & {
   field: ScheduleField;
   label: string;
   type: "date" | "time" | "text";
   placeholder?: string;
+  suggestions?: readonly string[];
   className?: string;
 }) {
   const invalid = errors.missing[field] === true;
+  const id = useId();
+
+  if (suggestions === undefined) {
+    return (
+      <div className={className}>
+        <label className={FIELD_LABEL}>
+          {label} <span className="text-error">*</span>
+          <input
+            type={type}
+            value={trip[field]}
+            placeholder={placeholder}
+            aria-invalid={invalid}
+            onChange={(event) => onChange({ [field]: event.target.value })}
+            className={cn(FIELD_SM, fieldBorder(invalid), "mt-1.5")}
+          />
+        </label>
+      </div>
+    );
+  }
+
   return (
     <div className={className}>
-      <label className={FIELD_LABEL}>
+      <label htmlFor={id} className={FIELD_LABEL}>
         {label} <span className="text-error">*</span>
-        <input
-          type={type}
-          value={trip[field]}
-          placeholder={placeholder}
-          aria-invalid={invalid}
-          onChange={(event) => onChange({ [field]: event.target.value })}
-          className={cn(FIELD_SM, fieldBorder(invalid), "mt-1.5")}
-        />
       </label>
+      <WizardComboInput
+        id={id}
+        type="text"
+        value={trip[field]}
+        suggestions={suggestions}
+        placeholder={placeholder}
+        invalid={invalid}
+        onChange={(value) => onChange({ [field]: value })}
+        className={cn(FIELD_SM, fieldBorder(invalid), "mt-1.5")}
+      />
     </div>
   );
 }
 
-function PickupSchedule(props: ScheduleProps) {
+function PickupSchedule(
+  props: ScheduleProps & {
+    pickupPointSuggestions: readonly string[];
+    dropoffPointSuggestions: readonly string[];
+  },
+) {
   return (
     <>
       <h4 className={cn(STEP_SUBSECTION, "mt-8 mb-3.5")}>Schedule</h4>
@@ -266,6 +305,7 @@ function PickupSchedule(props: ScheduleProps) {
           label="Pickup Point"
           type="text"
           placeholder="e.g. GLS Tower lobby"
+          suggestions={props.pickupPointSuggestions}
         />
         <ScheduleInput
           {...props}
@@ -273,13 +313,16 @@ function PickupSchedule(props: ScheduleProps) {
           label="Drop-off Point"
           type="text"
           placeholder="e.g. AGT Building"
+          suggestions={props.dropoffPointSuggestions}
         />
       </div>
     </>
   );
 }
 
-function StandbyWindow(props: ScheduleProps) {
+function StandbyWindow(
+  props: ScheduleProps & { pickupPointSuggestions: readonly string[] },
+) {
   return (
     <>
       <h4 className={cn(STEP_SUBSECTION, "mt-8 mb-3.5")}>Standby Window</h4>
@@ -314,6 +357,7 @@ function StandbyWindow(props: ScheduleProps) {
           label="Reporting Point"
           type="text"
           placeholder="Where should the van wait?"
+          suggestions={props.pickupPointSuggestions}
           className="md:col-span-2"
         />
       </div>

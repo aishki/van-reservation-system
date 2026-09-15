@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BookingDone } from "@/components/requestor/wizard/booking-done";
@@ -24,6 +25,7 @@ import {
   validateStep,
   type WizardStep,
 } from "@/modules/reservations/draft";
+import { FIELD_HISTORY_KEY } from "@/modules/reservations/query-keys";
 import type { RideMode, SiteLocation } from "@/modules/reservations/types";
 
 interface BookingWizardProps {
@@ -66,6 +68,7 @@ interface Submission {
  */
 export function BookingWizard({ mode, name, email }: BookingWizardProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [draft, setDraft] = useState<BookingDraft>(() => blankDraft(mode));
   const [step, setStep] = useState<WizardStep>(2);
   const [showErrors, setShowErrors] = useState(false);
@@ -150,6 +153,12 @@ export function BookingWizard({ mode, name, email }: BookingWizardProps) {
         references: created.references,
         submittedAt: new Date(created.submittedAt),
       });
+      // So "Book another request" — which resets the wizard's own state
+      // without a page reload — sees what was just submitted. Without this,
+      // every combobox keeps showing whatever was cached at the FIRST mount
+      // of this session, forever: `staleTime: Infinity` means React Query
+      // never refetches on its own.
+      void queryClient.invalidateQueries({ queryKey: FIELD_HISTORY_KEY });
     } catch (error) {
       // The server's own words when it gave any — a 422 here means the client
       // and server disagree about the draft, and its message says how.

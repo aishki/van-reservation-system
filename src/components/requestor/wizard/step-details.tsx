@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 import { Hint } from "@/components/common/hint";
+import { WizardComboInput } from "@/components/requestor/wizard/wizard-combo-input";
 import {
   FIELD_ERROR,
   FIELD_LABEL,
@@ -12,6 +13,7 @@ import {
   STEP_HEADING,
   STEP_SUBHEADING,
 } from "@/components/requestor/wizard/wizard-theme";
+import { useFieldHistory } from "@/hooks/use-field-history";
 import { cn } from "@/lib/utils";
 import type { DraftErrors } from "@/modules/reservations/draft";
 import {
@@ -54,6 +56,7 @@ export function StepDetails({
   const mobileId = useId();
   const mobileErrorId = useId();
   const siteErrorId = useId();
+  const history = useFieldHistory();
 
   return (
     <>
@@ -162,17 +165,18 @@ export function StepDetails({
           <label htmlFor={mobileId} className={FIELD_LABEL}>
             Requestor Mobile Number <span className="text-error">*</span>
           </label>
-          <input
+          <WizardComboInput
             id={mobileId}
             type="tel"
-            // `numeric` not `tel`: the value is digits and spaces only, and the
-            // tel keypad on iOS offers +*# which this format never uses.
-            inputMode="numeric"
-            autoComplete="tel-national"
+            suggestions={history.mobile}
+            // Not `tel-national`: that's what invites Chrome's OWN saved-
+            // number panel to stack on top of this one, the same collision
+            // `WizardComboInput`'s doc comment covers for `type="email"`.
+            autoComplete="off"
             placeholder="09XX XXX XXXX"
             value={mobile}
-            onChange={(event) => onMobile(event.target.value)}
-            aria-invalid={errors.mobile !== undefined}
+            onChange={onMobile}
+            invalid={errors.mobile !== undefined}
             aria-describedby={errors.mobile ? mobileErrorId : undefined}
             className={cn(FIELD_LG, fieldBorder(errors.mobile !== undefined))}
           />

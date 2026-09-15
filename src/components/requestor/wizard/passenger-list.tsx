@@ -1,12 +1,15 @@
 "use client";
 
+import { useId } from "react";
 import { Hint } from "@/components/common/hint";
+import { WizardComboInput } from "@/components/requestor/wizard/wizard-combo-input";
 import {
   FIELD_ERROR,
   FIELD_LABEL_SM,
   FIELD_SM,
   fieldBorder,
 } from "@/components/requestor/wizard/wizard-theme";
+import { useFieldHistory } from "@/hooks/use-field-history";
 import { cn } from "@/lib/utils";
 import {
   MESSAGES,
@@ -36,12 +39,15 @@ interface PassengerListProps {
  * without it the only feedback is a visual row appearing, and a keyboard user
  * who just pressed "−" gets nothing.
  *
- * Both fields are manual entry — there is no directory lookup here yet. A
+ * Both fields are manual entry — there is no DIRECTORY lookup here yet. What
+ * they do have is the requestor's own HISTORY: `WizardComboInput` suggests
+ * names and emails this requestor has typed on a past booking, purely a
+ * convenience for someone who books the same few people repeatedly. A
  * name-search endpoint the API owner is building will eventually offer
- * suggestions as the requestor types a name and fill in the matched person's
- * email automatically, the way the Domain ID lookup used to fill in the name.
- * Until then, Passenger Email stays a plain, optional text field: many
- * passengers are external clients with no corporate account to search for.
+ * directory suggestions too and fill in the matched person's email
+ * automatically, the way the old Domain ID lookup filled in the name — but
+ * Passenger Email stays optional even then: many passengers are external
+ * clients with no corporate account to search for.
  */
 export function PassengerList({
   passengers,
@@ -52,6 +58,7 @@ export function PassengerList({
   onRemove,
 }: PassengerListProps) {
   const onlyOne = passengers.length === 1;
+  const history = useFieldHistory();
 
   return (
     <>
@@ -114,6 +121,8 @@ export function PassengerList({
             row={errors.passengerRows[index] ?? { name: false, email: false }}
             onlyOne={onlyOne}
             tripLabel={tripLabel}
+            nameSuggestions={history.passengerName}
+            emailSuggestions={history.passengerEmail}
             onChange={(patch) => onChange(index, patch)}
             onRemove={() => onRemove(index)}
           />
@@ -143,6 +152,8 @@ interface PassengerRowProps {
   row: { name: boolean; email: boolean };
   onlyOne: boolean;
   tripLabel: string;
+  nameSuggestions: readonly string[];
+  emailSuggestions: readonly string[];
   onChange: (patch: Partial<PassengerDraft>) => void;
   onRemove: () => void;
 }
@@ -154,9 +165,14 @@ function PassengerRow({
   row,
   onlyOne,
   tripLabel,
+  nameSuggestions,
+  emailSuggestions,
   onChange,
   onRemove,
 }: PassengerRowProps) {
+  const nameId = useId();
+  const emailId = useId();
+
   return (
     <div>
       <div className="grid grid-cols-[32px_1fr] items-end gap-3 md:grid-cols-[32px_1fr_1fr_34px]">
@@ -168,33 +184,35 @@ function PassengerRow({
         </span>
 
         <div>
-          <label className={FIELD_LABEL_SM}>
+          <label htmlFor={nameId} className={FIELD_LABEL_SM}>
             Passenger Name <span className="text-error">*</span>
-            <input
-              type="text"
-              value={passenger.name}
-              placeholder="Juan Dela Cruz"
-              autoComplete="off"
-              aria-invalid={row.name}
-              onChange={(event) => onChange({ name: event.target.value })}
-              className={cn(FIELD_SM, fieldBorder(row.name), "mt-1.5")}
-            />
           </label>
+          <WizardComboInput
+            id={nameId}
+            type="text"
+            value={passenger.name}
+            suggestions={nameSuggestions}
+            placeholder="Juan Dela Cruz"
+            invalid={row.name}
+            onChange={(name) => onChange({ name })}
+            className={cn(FIELD_SM, fieldBorder(row.name), "mt-1.5")}
+          />
         </div>
 
         <div>
-          <label className={FIELD_LABEL_SM}>
+          <label htmlFor={emailId} className={FIELD_LABEL_SM}>
             Passenger Email
-            <input
-              type="email"
-              value={passenger.email}
-              placeholder="name@example.com (optional)"
-              autoComplete="off"
-              aria-invalid={row.email}
-              onChange={(event) => onChange({ email: event.target.value })}
-              className={cn(FIELD_SM, fieldBorder(row.email), "mt-1.5")}
-            />
           </label>
+          <WizardComboInput
+            id={emailId}
+            type="email"
+            value={passenger.email}
+            suggestions={emailSuggestions}
+            placeholder="name@example.com (optional)"
+            invalid={row.email}
+            onChange={(email) => onChange({ email })}
+            className={cn(FIELD_SM, fieldBorder(row.email), "mt-1.5")}
+          />
         </div>
 
         <Hint
