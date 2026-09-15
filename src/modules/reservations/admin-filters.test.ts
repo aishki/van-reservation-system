@@ -240,6 +240,7 @@ describe("status filter", () => {
     expect(blankAdminFilter().statuses).toEqual([
       "Approved",
       "Approved - Driver Reassigned",
+      "No Show",
       "Rejected",
       "Cancelled",
     ]);
@@ -389,6 +390,7 @@ describe("statusBreakdown", () => {
       Pending: 2,
       Approved: 1,
       "Approved - Driver Reassigned": 0,
+      "No Show": 0,
       Rejected: 1,
       Cancelled: 1,
     });
@@ -454,6 +456,7 @@ describe("tab vocabulary", () => {
       statuses: [
         "Approved",
         "Approved - Driver Reassigned",
+        "No Show",
         "Rejected",
         "Cancelled",
       ],

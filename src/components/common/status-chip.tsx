@@ -18,6 +18,9 @@ const CHIP: Record<ReservationStatus, string> = {
   // The trip IS approved; a fourth colour would imply a different kind of
   // state. The label carries the distinction.
   "Approved - Driver Reassigned": "bg-success-tint text-success",
+  // Its own tone, not error's: a No Show reads as a different outcome from a
+  // Rejection, and unlike every other non-green status here it is reversible.
+  "No Show": "bg-warning-tint text-warning",
   Rejected: "bg-error-tint text-error",
   Cancelled: "bg-gray-5 text-gray-2",
 };

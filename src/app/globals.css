@@ -103,13 +103,18 @@
   /* Utility — Colors/Utility */
   --color-error: #d20a3c;
   --color-success: #108808;
+  /* No Show's own tone: a rejection-red chip would read as the same outcome as
+     Rejected, when the two are different in substance (and No Show, unlike
+     every other terminal-looking status, is reversible). */
+  --color-warning: #a15c00;
 
   /* Status and destructive-action tints, from the booking wizard and the manage
      table's status chips. Surfaces only — the text on them is always
-     --color-error / --color-success, never these. */
+     --color-error / --color-success / --color-warning, never these. */
   --color-error-tint: #fdecf0;
   --color-error-tint-border: #f3d3dc;
   --color-success-tint: #eefaee;
+  --color-warning-tint: #fdf3e2;
 
   --color-background: #ffffff;
   --color-foreground: var(--color-gray-1);

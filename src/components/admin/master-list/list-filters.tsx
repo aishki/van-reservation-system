@@ -192,7 +192,7 @@ function StatusFilter({
         );
       })}
 
-      {/* Five statuses is enough that toggling them one at a time is tedious,
+      {/* Six statuses is enough that toggling them one at a time is tedious,
           and Clear makes the empty state reachable deliberately rather than
           only by accident. */}
       <button

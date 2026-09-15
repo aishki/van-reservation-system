@@ -67,11 +67,18 @@ export type SiteLocation = (typeof SITE_LOCATIONS)[number];
  * `Approved - Driver Reassigned` records that an approved trip's van or driver
  * moved after the fact. It is admin bookkeeping only: `requestorFacingStatus`
  * collapses it back to `Approved` on every requestor-facing path.
+ *
+ * `No Show` records that the van and driver were there but the passenger
+ * wasn't — distinct from `Cancelled` (withdrawn ahead of time) and `Rejected`
+ * (never approved), and unlike every other status here it is REVERSIBLE: an
+ * admin can put a trip back to `Approved` if the passenger turns up late. See
+ * `isNoShowEligible` / `canRevertNoShow`.
  */
 export const RESERVATION_STATUSES = [
   "Pending",
   "Approved",
   "Approved - Driver Reassigned",
+  "No Show",
   "Rejected",
   "Cancelled",
 ] as const;
@@ -85,11 +92,17 @@ export type ReservationStatus = (typeof RESERVATION_STATUSES)[number];
  * right every time a status is added. Under those literals a reassigned trip
  * vanished from the schedule and dropped out of its driver's weekly total: a van
  * and a driver committed to a trip the calendar no longer showed.
+ *
+ * `No Show` belongs here too: the driver and van genuinely turned up for the
+ * slot, so the calendar should still show it occupied and the driver's
+ * workload should still count it — only the passenger's half of the trip
+ * failed to happen.
  */
 export const SCHEDULED_STATUSES: ReadonlySet<ReservationStatus> = new Set([
   "Pending",
   "Approved",
   "Approved - Driver Reassigned",
+  "No Show",
 ]);
 
 /** Approved in substance, whichever of the two spellings the row carries. */
@@ -108,12 +121,15 @@ export function isRequestorEditable(status: ReservationStatus): boolean {
  * called off must be able to withdraw it, and so must an admin acting for them.
  * Rejected and Cancelled stay terminal.
  *
- * Derived from `SCHEDULED_STATUSES` rather than restating `Pending || Approved`
- * — the same set today, and it cannot drift from the calendar's idea of a live
- * trip tomorrow.
+ * NOT derived from `SCHEDULED_STATUSES` (it once could be — the two sets were
+ * identical before `No Show` existed). `No Show` is scheduled, in the sense
+ * that it still occupies the calendar, but it is not something you cancel: the
+ * trip already happened, and its only legal way out is `isNoShowEligible`'s
+ * reverse, back to `Approved`. So this restates `Pending || an approved
+ * spelling` directly rather than reusing a set that would wrongly admit it.
  */
 export function isCancellable(status: ReservationStatus): boolean {
-  return SCHEDULED_STATUSES.has(status);
+  return status === "Pending" || APPROVED_STATUSES.has(status);
 }
 
 /**
@@ -124,6 +140,24 @@ export function isCancellable(status: ReservationStatus): boolean {
  */
 export function isReassignable(status: ReservationStatus): boolean {
   return APPROVED_STATUSES.has(status);
+}
+
+/**
+ * An admin may mark an approved trip as a no-show — the driver and van were
+ * committed, but the passenger never boarded.
+ *
+ * Same admitted set as `isReassignable` today, but named for what it MEANS
+ * rather than reusing that predicate: reassigning a driver and marking a
+ * no-show are different admin actions that happen to share eligibility now,
+ * and nothing says they always will.
+ */
+export function isNoShowEligible(status: ReservationStatus): boolean {
+  return APPROVED_STATUSES.has(status);
+}
+
+/** The one reverse transition: a no-show can be corrected back to Approved. */
+export function canRevertNoShow(status: ReservationStatus): boolean {
+  return status === "No Show";
 }
 
 /**

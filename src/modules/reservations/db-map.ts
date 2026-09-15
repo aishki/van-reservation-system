@@ -17,6 +17,7 @@ export const STATUS_TO_DB = {
   Pending: "pending",
   Approved: "approved",
   "Approved - Driver Reassigned": "approved_reassigned",
+  "No Show": "no_show",
   Rejected: "rejected",
   Cancelled: "cancelled",
 } as const satisfies Record<ReservationStatus, string>;
@@ -74,6 +75,8 @@ export const RESERVATION_EVENT_TYPES = [
   "driver_reassigned",
   "van_assigned",
   "van_reassigned",
+  "no_show",
+  "no_show_reverted",
 ] as const;
 
 export type ReservationEventType = (typeof RESERVATION_EVENT_TYPES)[number];

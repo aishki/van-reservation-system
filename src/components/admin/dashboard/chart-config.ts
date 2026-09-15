@@ -14,6 +14,7 @@ export const STATUS_COLOR: Record<ReservationStatus, string> = {
   Approved: "var(--color-success)",
   "Approved - Driver Reassigned":
     "color-mix(in srgb, var(--color-success) 55%, white)",
+  "No Show": "var(--color-warning)",
   Rejected: "var(--color-error)",
   Cancelled: "var(--color-gray-3)",
 };

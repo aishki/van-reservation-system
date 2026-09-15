@@ -47,6 +47,8 @@ export const AUDIT_ACTIONS = [
   "driver_reassigned",
   "van_assigned",
   "van_reassigned",
+  "no_show",
+  "no_show_reverted",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -59,6 +61,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   driver_reassigned: "Reassigned driver",
   van_assigned: "Assigned van",
   van_reassigned: "Reassigned van",
+  no_show: "Marked no show",
+  no_show_reverted: "Reverted no show",
 };
 
 export interface AuditEntry {
