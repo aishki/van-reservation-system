@@ -1,6 +1,7 @@
 import { Hr, Link, Section, Text } from "@react-email/components";
 import { render } from "@react-email/render";
 import {
+  type EmailAudience,
   RequestInformation,
   type RequestInformationInput,
 } from "@/modules/email/templates/request-information";
@@ -36,6 +37,8 @@ type StatusDetail =
 export type BookingStatusChangeInput = RequestInformationInput & {
   /** Absolute link back to the requestor's bookings (built from APP_URL). */
   manageUrl: string;
+  /** Passenger copies get a badge and drop the admin-cc footer line. */
+  audience?: EmailAudience;
 } & StatusDetail;
 
 /** Tint per outcome: approval reads as good news, rejection as bad, cancellation as neutral. */
@@ -93,11 +96,13 @@ const HEADINGS = {
 export function BookingStatusChangeEmail(input: BookingStatusChangeInput) {
   const tone = TONE[input.status];
   const reason = reasonOf(input);
+  const isPassenger = input.audience === "passenger";
 
   return (
     <EmailShell
       preview={`${input.status} — ${input.trips[0]?.referenceId ?? ""} in ${input.site}`}
       heading={HEADINGS[input.status]}
+      badge={isPassenger ? "Passenger Copy" : undefined}
       lead={leadOf(input)}
     >
       {reason !== null && (
@@ -147,7 +152,11 @@ export function BookingStatusChangeEmail(input: BookingStatusChangeInput) {
         <Link href={input.manageUrl} style={styles.link}>
           the Van Reservation website
         </Link>
-        . Your site's Admin Support team is copied on this email.
+        .{" "}
+        {/* Only true for the requestor's own copy — a passenger copy carries
+            no cc, so saying so here would misstate who else got this mail. */}
+        {!isPassenger &&
+          "Your site's Admin Support team is copied on this email."}
       </Text>
     </EmailShell>
   );
@@ -161,8 +170,10 @@ export async function renderBookingStatusChange(
     render(element),
     render(element, { plainText: true }),
   ]);
+  const subject = `Van reservation ${input.trips[0]?.referenceId ?? ""} — ${input.status}`;
   return {
-    subject: `Van reservation ${input.trips[0]?.referenceId ?? ""} — ${input.status}`,
+    subject:
+      input.audience === "passenger" ? `${subject} — Passenger Copy` : subject,
     html,
     text,
   };

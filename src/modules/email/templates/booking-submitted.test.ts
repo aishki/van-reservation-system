@@ -81,4 +81,36 @@ describe("renderBookingSubmitted", () => {
     expect(text).not.toContain("<html");
     expect(text).not.toContain("<p>");
   });
+
+  describe("a passenger's copy", () => {
+    const passengerCopy: BookingSubmittedInput = {
+      ...input(trip()),
+      audience: "passenger",
+    };
+
+    it("opens by naming who added them, not a greeting to the requestor", async () => {
+      const { text } = await renderBookingSubmitted(passengerCopy);
+      expect(text).toContain("You have been added as a passenger by");
+      expect(text).toContain("Juan Cruz");
+      expect(text).not.toContain("Hi Juan Cruz, your van reservation");
+    });
+
+    it("carries a Passenger Copy badge and subject suffix", async () => {
+      const { html, subject } = await renderBookingSubmitted(passengerCopy);
+      expect(html).toContain("Passenger Copy");
+      expect(subject).toContain("Passenger Copy");
+    });
+
+    it("still shows the pending status and the trip details", async () => {
+      const { html } = await renderBookingSubmitted(passengerCopy);
+      expect(html).toContain("Pending");
+      expect(html).toContain("VR-1042");
+    });
+
+    it("renders exactly as before when audience is absent", async () => {
+      const { html, text } = await renderBookingSubmitted(input(trip()));
+      expect(html).not.toContain("Passenger Copy");
+      expect(text).toContain("Hi Juan Cruz, your van reservation");
+    });
+  });
 });

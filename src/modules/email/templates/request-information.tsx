@@ -83,6 +83,16 @@ export type RequestTrip = TripCommon &
       }
   );
 
+/**
+ * Who a copy of a requestor-facing notice is for. `"passenger"` is a
+ * passenger named on the trip, not the person who booked it — the templates
+ * that accept this render a "Passenger Copy" badge and, where the copy
+ * otherwise reads as one-sided, adjust for it. Absent (or `"requestor"`)
+ * renders exactly as before, so an outbox row queued before this field
+ * existed still renders unchanged.
+ */
+export type EmailAudience = "requestor" | "passenger";
+
 export interface RequestInformationInput {
   site: string;
   rideMode: string;

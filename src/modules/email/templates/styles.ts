@@ -50,4 +50,17 @@ export const styles = {
   hr: { borderColor: "#eeeeee", margin: "24px 0" },
   footer: { fontSize: "13px", lineHeight: "20px", color: "#949494" },
   link: { color: "#5009b5" },
+  /** The "Passenger Copy" pill `EmailShell` renders above the heading. */
+  badge: {
+    display: "inline-block",
+    fontSize: "11px",
+    fontWeight: 600,
+    color: "#5009b5",
+    backgroundColor: "#f4edff",
+    borderRadius: "999px",
+    padding: "4px 10px",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.06em",
+    margin: "0 0 14px",
+  },
 } as const;

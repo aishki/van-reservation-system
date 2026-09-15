@@ -341,3 +341,52 @@ function assignedVanOf(row: {
     carType: carType ?? EM_DASH,
   };
 }
+
+/**
+ * Every passenger email on a `RequestInformationInput`, deduped and in the
+ * order first seen — one notice per address, not one per trip they are on.
+ *
+ * Case-insensitive: an address typed as `Juan@Carelon.com` on one trip and
+ * `juan@carelon.com` on another is one passenger, not two, and would
+ * otherwise draw two nearly identical mails.
+ */
+export function passengerEmailsOf(info: RequestInformationInput): string[] {
+  const seen = new Map<string, string>();
+  for (const trip of info.trips) {
+    for (const passenger of trip.passengers) {
+      if (passenger.email === null) continue;
+      const email = passenger.email.trim();
+      if (email === "") continue;
+      const key = email.toLowerCase();
+      if (!seen.has(key)) seen.set(key, email);
+    }
+  }
+  return [...seen.values()];
+}
+
+/**
+ * A passenger's own copy of a submission: the same site, ride mode and
+ * requestor, but only the trip(s) THAT passenger is actually on.
+ *
+ * Filtering matters because `info` (from `requestInformationFromDraft`) can
+ * carry several trips with different passenger lists — a submission is one
+ * digest for the requestor, but a passenger on trip 1 has no business seeing
+ * trip 2's purpose, passengers or pickup point just because it shared a
+ * submission. `loadRequestInformation`'s single-trip card never needs this:
+ * a stored reservation's passengers ARE that trip's passengers, nothing to
+ * filter out.
+ */
+export function requestInformationForPassenger(
+  info: RequestInformationInput,
+  email: string,
+): RequestInformationInput {
+  const key = email.trim().toLowerCase();
+  return {
+    ...info,
+    trips: info.trips.filter((trip) =>
+      trip.passengers.some(
+        (passenger) => passenger.email?.trim().toLowerCase() === key,
+      ),
+    ),
+  };
+}

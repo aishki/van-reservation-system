@@ -103,4 +103,27 @@ describe("renderBookingStatusChange", () => {
     expect(text).not.toContain("<html");
     expect(text).not.toContain("<p>");
   });
+
+  describe("a passenger's copy", () => {
+    const passengerCopy: BookingStatusChangeInput = {
+      ...approved,
+      audience: "passenger",
+    };
+
+    it("carries a Passenger Copy badge and subject suffix", async () => {
+      const { html, subject } = await renderBookingStatusChange(passengerCopy);
+      expect(html).toContain("Passenger Copy");
+      expect(subject).toContain("Passenger Copy");
+    });
+
+    it("does not claim the admins are copied — they are not, on this copy", async () => {
+      const { text } = await renderBookingStatusChange(passengerCopy);
+      expect(text).not.toContain("Admin Support team is copied");
+    });
+
+    it("still names the reference and status", async () => {
+      const { html } = await renderBookingStatusChange(passengerCopy);
+      expect(html).toContain("VR-1042");
+    });
+  });
 });

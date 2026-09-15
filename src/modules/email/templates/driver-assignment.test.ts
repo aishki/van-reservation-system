@@ -143,4 +143,23 @@ describe("renderDriverAssignment", () => {
     expect(text).toContain("Rico Santos");
     expect(text).not.toContain("<html");
   });
+
+  describe("a passenger's copy", () => {
+    const passengerCopy: DriverAssignmentInput = {
+      ...input,
+      audience: "passenger",
+    };
+
+    it("carries a Passenger Copy badge and subject suffix", async () => {
+      const { html, subject } = await renderDriverAssignment(passengerCopy);
+      expect(html).toContain("Passenger Copy");
+      expect(subject).toContain("Passenger Copy");
+    });
+
+    it("still shows the assigned driver and van", async () => {
+      const { html } = await renderDriverAssignment(passengerCopy);
+      expect(html).toContain("Rico Santos");
+      expect(html).toContain("ABC 1234");
+    });
+  });
 });

@@ -97,7 +97,13 @@ const requestInformation = z.object({
   trips: z.array(trip).min(1),
 });
 
-const withManageUrl = requestInformation.extend({ manageUrl: text });
+// Optional and absent by default: an outbox row queued before the passenger
+// copy feature existed has no such field, and it must still render as the
+// requestor's own copy rather than being stranded by a stricter schema.
+const withManageUrl = requestInformation.extend({
+  manageUrl: text,
+  audience: z.enum(["requestor", "passenger"]).optional(),
+});
 
 interface TemplateEntry<T> {
   schema: z.ZodType<T>;

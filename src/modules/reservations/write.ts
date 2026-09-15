@@ -30,8 +30,11 @@ import {
   validateStep,
 } from "@/modules/reservations/draft";
 import {
+  type EmailChannel,
   loadRequestInformation,
+  passengerEmailsOf,
   recordNotification,
+  requestInformationForPassenger,
   requestInformationFromDraft,
 } from "@/modules/reservations/notify";
 import { isTripPurpose } from "@/modules/reservations/reference";
@@ -284,6 +287,23 @@ export async function submitBooking(
     // admin notice — otherwise they are told about their own booking.
     const admins = await adminRecipients(trx, siteLabel, actor.email);
 
+    // One passenger copy per unique address, not per trip — a passenger named
+    // on two trips in the same submission gets one mail carrying both, not
+    // two nearly identical ones. Each copy is filtered to only the trip(s)
+    // that passenger is actually on: they have no business seeing a
+    // co-submitted trip they are not part of.
+    const passengerNotices: EmailChannel[] = passengerEmailsOf(info).map(
+      (email) => ({
+        template: "booking-submitted",
+        recipient: email,
+        payload: {
+          ...requestInformationForPassenger(info, email),
+          manageUrl: `${appUrl}/manage`,
+          audience: "passenger",
+        },
+      }),
+    );
+
     await recordNotification(trx, {
       reservationId: null,
       event: "submitted",
@@ -305,6 +325,7 @@ export async function submitBooking(
           recipient: admins.join(", "),
           payload: { ...info, adminUrl: `${appUrl}/dashboard` },
         },
+        ...passengerNotices,
       ],
     });
 
@@ -424,6 +445,24 @@ export async function cancelReservation(
       byAdmin ? actor.email : row.requestor_email,
     );
 
+    const manageUrl = `${env().APP_URL}/manage`;
+    // The requestor may have cancelled it themselves, but the passengers still
+    // owe a notice either way — nobody who acted excludes them.
+    const passengerNotices: EmailChannel[] = passengerEmailsOf(info).map(
+      (email) => ({
+        template: "booking-status-change",
+        recipient: email,
+        payload: {
+          ...info,
+          manageUrl,
+          status: "Cancelled",
+          cancelledBy: actor.role,
+          cancellationReason,
+          audience: "passenger",
+        },
+      }),
+    );
+
     await recordNotification(trx, {
       reservationId: row.id,
       event: "cancelled",
@@ -441,12 +480,13 @@ export async function cancelReservation(
           cc: byAdmin ? admins : [],
           payload: {
             ...info,
-            manageUrl: `${env().APP_URL}/manage`,
+            manageUrl,
             status: "Cancelled",
             cancelledBy: actor.role,
             cancellationReason,
           },
         },
+        ...passengerNotices,
       ],
     });
 
@@ -787,6 +827,16 @@ export async function decideReservation(
       // named a driver is a CHANGE to an assignment the requestor has already
       // been told about, not a first one.
       const firstTime = !isAssigned(row);
+      const change = firstTime ? "assigned" : "changed";
+      const info = await loadRequestInformation(trx, row.id);
+      const passengerNotices: EmailChannel[] = passengerEmailsOf(info).map(
+        (email) => ({
+          template: "driver-assignment",
+          recipient: email,
+          payload: { ...info, manageUrl, change, audience: "passenger" },
+        }),
+      );
+
       await recordNotification(trx, {
         reservationId: row.id,
         // The event VALUES stay `driver_*`: they are stored in
@@ -807,12 +857,9 @@ export async function decideReservation(
               siteFromDb(row.site),
               row.requestor_email,
             ),
-            payload: {
-              ...(await loadRequestInformation(trx, row.id)),
-              manageUrl,
-              change: firstTime ? "assigned" : "changed",
-            },
+            payload: { ...info, manageUrl, change },
           },
+          ...passengerNotices,
         ],
       });
 
@@ -820,6 +867,24 @@ export async function decideReservation(
     }
 
     const approved = input.decision === "approve";
+    const decidedInfo = await loadRequestInformation(trx, row.id);
+    const passengerDecisionNotices: EmailChannel[] = passengerEmailsOf(
+      decidedInfo,
+    ).map((email) => ({
+      template: "booking-status-change",
+      recipient: email,
+      payload: {
+        ...decidedInfo,
+        manageUrl,
+        audience: "passenger",
+        ...(approved
+          ? { status: "Approved" }
+          : {
+              status: "Rejected",
+              rejectionReason: input.rejectionReason.trim(),
+            }),
+      },
+    }));
     await recordNotification(trx, {
       reservationId: row.id,
       event: approved ? "approved" : "rejected",
@@ -843,7 +908,7 @@ export async function decideReservation(
             row.requestor_email,
           ),
           payload: {
-            ...(await loadRequestInformation(trx, row.id)),
+            ...decidedInfo,
             manageUrl,
             ...(approved
               ? { status: "Approved" }
@@ -853,6 +918,7 @@ export async function decideReservation(
                 }),
           },
         },
+        ...passengerDecisionNotices,
       ],
     });
 

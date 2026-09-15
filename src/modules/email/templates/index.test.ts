@@ -124,6 +124,19 @@ describe("renderTemplate", () => {
     ).toEqual({ ok: false, error: "INVALID_PAYLOAD" });
   });
 
+  // `audience` decides the "Passenger Copy" badge — if the schema silently
+  // stripped it (the default for an unrecognized zod object key), a
+  // passenger's copy would render as the requestor's, indistinguishable.
+  it("passes the audience field through to the renderer", async () => {
+    const result = await renderTemplate("booking-submitted", {
+      ...manage,
+      audience: "passenger",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.html).toContain("Passenger Copy");
+  });
+
   // `details` became required on `reservations` after this outbox schema was
   // frozen; a row queued before that migration has no such field. Unlike
   // `site` above, that must render, not fail permanently, or a pre-deploy

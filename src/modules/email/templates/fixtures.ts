@@ -141,6 +141,12 @@ const submittedStandby: BookingSubmittedInput = {
   trips: [standbyTrip],
 };
 
+/** A passenger's own copy — one trip only, the one they are actually on. */
+const submittedPassenger: BookingSubmittedInput = {
+  ...submittedOne,
+  audience: "passenger",
+};
+
 const adminNotice: AdminNewRequestInput = {
   site: "Iloilo",
   rideMode: "Pickup / Drop-off",
@@ -167,6 +173,11 @@ const statusCommon = {
 const approved: BookingStatusChangeInput = {
   ...statusCommon,
   status: "Approved",
+};
+
+const approvedPassenger: BookingStatusChangeInput = {
+  ...approved,
+  audience: "passenger",
 };
 
 const rejected: BookingStatusChangeInput = {
@@ -218,6 +229,11 @@ const driverChanged: DriverAssignmentInput = {
   change: "changed",
 };
 
+const driverAssignedPassenger: DriverAssignmentInput = {
+  ...driverAssigned,
+  audience: "passenger",
+};
+
 export const PREVIEWS: Record<string, Preview> = {
   "booking-submitted": {
     title: "#1 Submitted — 3 trips (requestor)",
@@ -238,6 +254,12 @@ export const PREVIEWS: Record<string, Preview> = {
     // Manila, unlike the others — the standby fixture books the other site.
     render: () => renderBookingSubmitted(submittedStandby),
   },
+  "booking-submitted-passenger": {
+    title: "#1 Submitted — 1 trip (passenger copy)",
+    to: "marco.dizon@carelon.com",
+    cc: [],
+    render: () => renderBookingSubmitted(submittedPassenger),
+  },
   "admin-new-request": {
     title: "#2 New request (Iloilo admins)",
     to: ILOILO_ADMINS.join(", "),
@@ -257,6 +279,12 @@ export const PREVIEWS: Record<string, Preview> = {
     to: REQUESTOR.email,
     cc: ILOILO_ADMINS,
     render: () => renderBookingStatusChange(approved),
+  },
+  "status-approved-passenger": {
+    title: "#3 Status — Approved (passenger copy, no cc)",
+    to: "marco.dizon@carelon.com",
+    cc: [],
+    render: () => renderBookingStatusChange(approvedPassenger),
   },
   "status-rejected": {
     title: "#3 Status — Rejected (requestor, admins cc'd)",
@@ -282,6 +310,12 @@ export const PREVIEWS: Record<string, Preview> = {
     to: REQUESTOR.email,
     cc: ILOILO_ADMINS,
     render: () => renderDriverAssignment(driverAssigned),
+  },
+  "driver-assigned-passenger": {
+    title: "#4 Van assignment set (passenger copy, no cc)",
+    to: "marco.dizon@carelon.com",
+    cc: [],
+    render: () => renderDriverAssignment(driverAssignedPassenger),
   },
   "driver-changed": {
     title: "#4 Van assignment changed (requestor)",

@@ -26,12 +26,19 @@ export function EmailShell({
   heading,
   lead,
   children,
+  badge,
 }: {
   preview: string;
   heading: string;
   /** The one-line summary under the heading. */
   lead: React.ReactNode;
   children: React.ReactNode;
+  /**
+   * A small pill above the heading — e.g. "Passenger Copy", so a passenger
+   * opening the same notice the requestor got can tell at a glance which
+   * copy this is. Absent for every other recipient.
+   */
+  badge?: string;
 }) {
   return (
     <Html>
@@ -39,6 +46,7 @@ export function EmailShell({
       <Preview>{preview}</Preview>
       <Body style={styles.body}>
         <Container style={styles.container}>
+          {badge !== undefined && <Text style={styles.badge}>{badge}</Text>}
           <Heading style={styles.heading}>{heading}</Heading>
           <Text style={styles.lead}>{lead}</Text>
           {children}

@@ -2,6 +2,7 @@ import { Hr, Link, Text } from "@react-email/components";
 import { render } from "@react-email/render";
 import { EM_DASH } from "@/lib/tz";
 import {
+  type EmailAudience,
   RequestInformation,
   type RequestInformationInput,
   type RequestTrip,
@@ -33,6 +34,8 @@ export type DriverAssignmentInput = RequestInformationInput & {
   manageUrl: string;
   /** First assignment, or a replacement for one already communicated. */
   change: "assigned" | "changed";
+  /** Passenger copies get their own badge — see `EmailAudience`. */
+  audience?: EmailAudience;
 };
 
 /**
@@ -63,6 +66,7 @@ export function DriverAssignmentEmail(input: DriverAssignmentInput) {
     <EmailShell
       preview={`Van assignment ${wording(input.change)} — ${input.trips[0]?.referenceId ?? ""} in ${input.site}`}
       heading={changed ? "Van assignment changed" : "Van assignment set"}
+      badge={input.audience === "passenger" ? "Passenger Copy" : undefined}
       lead={
         changed ? (
           <>
@@ -115,9 +119,11 @@ export async function renderDriverAssignment(
     render(element),
     render(element, { plainText: true }),
   ]);
+  const subject = `Van reservation ${input.trips[0]?.referenceId ?? ""} — van assignment ${wording(input.change)}`;
   return {
     // Human-facing like the heading, so it is worded the same way.
-    subject: `Van reservation ${input.trips[0]?.referenceId ?? ""} — van assignment ${wording(input.change)}`,
+    subject:
+      input.audience === "passenger" ? `${subject} — Passenger Copy` : subject,
     html,
     text,
   };

@@ -1418,7 +1418,7 @@ describe("decideReservation reassignment", () => {
       decision({ driver: rosterDriver(secondDriverId) }),
     );
 
-    const queued = (await queuedFor(reference)).filter(
+    const queued = excludingPassengers(await queuedFor(reference)).filter(
       (message) => message.event === "driver_changed",
     );
     expect(queued).toHaveLength(1);
@@ -1787,6 +1787,27 @@ const eventRows = () =>
     .select(["event", "recipient_user_id", "title", "body", "link"])
     .execute();
 
+/**
+ * Every queued message's row shape, from `queuedFor`. Declared once so the
+ * passenger-copy filters below aren't typed against `unknown`.
+ */
+type Queued = Awaited<ReturnType<typeof queuedFor>>[number];
+
+/** Excludes passenger copies, so pre-existing assertions about the ONE mail
+ * a requestor (or the admins) gets are unaffected by passengers also being
+ * queued now. */
+function excludingPassengers(rows: Queued[]): Queued[] {
+  return rows.filter(
+    (row) => (row.payload as { audience?: string }).audience !== "passenger",
+  );
+}
+
+function passengerCopies(rows: Queued[]): Queued[] {
+  return rows.filter(
+    (row) => (row.payload as { audience?: string }).audience === "passenger",
+  );
+}
+
 describe("submitBooking notifications", () => {
   it("records one event and two mails per submission, not per trip", async () => {
     const draft = pickupDraft([pickupTrip(), pickupTrip(), pickupTrip()]);
@@ -1794,14 +1815,16 @@ describe("submitBooking notifications", () => {
     if (!created.ok) throw new Error("submit failed");
     expect(created.value).toHaveLength(3);
 
-    // Three reservations, ONE event, TWO mails.
+    // Three reservations, ONE event, TWO mails to the requestor and admins —
+    // plus one more to the passenger with an email, deduped across all three
+    // identical trips (see the "passenger copies" describe block below).
     const events = await eventRows();
     expect(events).toHaveLength(1);
     expect(events[0].event).toBe("submitted");
     expect(events[0].recipient_user_id).toBe(requestor.userId);
 
     const queued = await queuedFor();
-    expect(queued.map((q) => q.template)).toEqual([
+    expect(excludingPassengers(queued).map((q) => q.template)).toEqual([
       "admin-new-request",
       "booking-submitted",
     ]);
@@ -1809,7 +1832,7 @@ describe("submitBooking notifications", () => {
 
   it("addresses the digest to the requestor and the notice to the site's admins", async () => {
     await submitted();
-    const queued = await queuedFor();
+    const queued = excludingPassengers(await queuedFor());
 
     const digest = queued.find((q) => q.template === "booking-submitted");
     expect(digest?.recipient).toBe(requestor.email);
@@ -1825,7 +1848,7 @@ describe("submitBooking notifications", () => {
     const created = await submitBooking(db, requestor, draft, NOW);
     if (!created.ok) throw new Error("submit failed");
 
-    const digest = (await queuedFor()).find(
+    const digest = excludingPassengers(await queuedFor()).find(
       (q) => q.template === "booking-submitted",
     );
     const payload = digest?.payload as { trips: { referenceId: string }[] };
@@ -1843,6 +1866,38 @@ describe("submitBooking notifications", () => {
     expect(await eventRows()).toHaveLength(0);
     expect(await queuedFor()).toHaveLength(0);
   });
+
+  describe("passenger copies", () => {
+    it("mails the passenger with an email, addressed to them", async () => {
+      await submitted();
+      const passengerMail = passengerCopies(await queuedFor());
+
+      expect(passengerMail).toHaveLength(1);
+      expect(passengerMail[0].template).toBe("booking-submitted");
+      expect(passengerMail[0].recipient).toBe("arielle.jimera@carelon.com");
+      expect((passengerMail[0].payload as { audience: string }).audience).toBe(
+        "passenger",
+      );
+    });
+
+    it("dedupes one passenger's copy across several identical trips", async () => {
+      const draft = pickupDraft([pickupTrip(), pickupTrip(), pickupTrip()]);
+      await submitBooking(db, requestor, draft, NOW);
+
+      const passengerMail = passengerCopies(await queuedFor());
+      expect(passengerMail).toHaveLength(1);
+    });
+
+    it("sends nothing to a passenger with no email", async () => {
+      await submitted();
+      const passengerMail = passengerCopies(await queuedFor());
+      // "Dizon, Marco" has no email in `pickupTrip()` — only one passenger
+      // copy is queued, not two.
+      expect(passengerMail.map((m) => m.recipient)).not.toContain(
+        "Dizon, Marco",
+      );
+    });
+  });
 });
 
 describe("decideReservation notifications", () => {
@@ -1859,7 +1914,7 @@ describe("decideReservation notifications", () => {
     });
     expect(decided.ok).toBe(true);
 
-    const queued = await queuedFor(reference);
+    const queued = excludingPassengers(await queuedFor(reference));
     expect(queued).toHaveLength(1);
     expect(queued[0].template).toBe("booking-status-change");
     expect(queued[0].event).toBe("approved");
@@ -1881,7 +1936,7 @@ describe("decideReservation notifications", () => {
       costing: null,
     });
 
-    const queued = await queuedFor(reference);
+    const queued = excludingPassengers(await queuedFor(reference));
     expect(queued[0].event).toBe("rejected");
     const payload = queued[0].payload as {
       status: string;
@@ -1905,7 +1960,7 @@ describe("decideReservation notifications", () => {
       costing: null,
     });
 
-    const queued = await queuedFor(reference);
+    const queued = excludingPassengers(await queuedFor(reference));
     expect(queued).toHaveLength(1);
     expect(queued[0].template).toBe("driver-assignment");
     expect(queued[0].event).toBe("driver_assigned");
@@ -1939,7 +1994,7 @@ describe("decideReservation notifications", () => {
       costing: null,
     });
 
-    const driverMail = (await queuedFor(reference)).filter(
+    const driverMail = excludingPassengers(await queuedFor(reference)).filter(
       (q) => q.template === "driver-assignment",
     );
     expect(driverMail).toHaveLength(2);
@@ -1962,7 +2017,7 @@ describe("decideReservation notifications", () => {
       costing: null,
     });
 
-    const queued = await queuedFor(reference);
+    const queued = excludingPassengers(await queuedFor(reference));
     expect(queued).toHaveLength(1);
     expect(queued[0].template).toBe("driver-assignment");
     expect((queued[0].payload as { change: string }).change).toBe("assigned");
@@ -2003,7 +2058,7 @@ describe("decideReservation notifications", () => {
       costing: null,
     });
 
-    const mail = (await queuedFor(reference)).filter(
+    const mail = excludingPassengers(await queuedFor(reference)).filter(
       (q) => q.template === "driver-assignment",
     );
     expect(mail.map((m) => m.event).sort()).toEqual([
@@ -2030,6 +2085,46 @@ describe("decideReservation notifications", () => {
     // with a blank reason.
     expect(await queuedFor(reference)).toHaveLength(0);
   });
+
+  describe("passenger copies", () => {
+    it("mails the trip's own passenger on approval, with no cc", async () => {
+      const reference = await submitted();
+      await decideReservation(db, admin, reference, {
+        version: 1,
+        decision: "approve",
+        rejectionReason: "",
+        driver: rosterDriver(driverId),
+        van: rosterVan(vanId),
+        trip: null,
+        costing: null,
+      });
+
+      const passengerMail = passengerCopies(await queuedFor(reference));
+      expect(passengerMail).toHaveLength(1);
+      expect(passengerMail[0].template).toBe("booking-status-change");
+      expect(passengerMail[0].recipient).toBe("arielle.jimera@carelon.com");
+      expect(passengerMail[0].cc).toEqual([]);
+    });
+
+    it("mails the trip's own passenger when a driver is assigned", async () => {
+      const reference = await submitted();
+      await decideReservation(db, admin, reference, {
+        version: 1,
+        decision: null,
+        rejectionReason: "",
+        driver: rosterDriver(driverId),
+        van: null,
+        trip: null,
+        costing: null,
+      });
+
+      const passengerMail = passengerCopies(await queuedFor(reference)).filter(
+        (q) => q.template === "driver-assignment",
+      );
+      expect(passengerMail).toHaveLength(1);
+      expect(passengerMail[0].recipient).toBe("arielle.jimera@carelon.com");
+    });
+  });
 });
 
 describe("cancelReservation notifications", () => {
@@ -2037,7 +2132,7 @@ describe("cancelReservation notifications", () => {
     const reference = await submitted();
     await cancelReservation(db, requestor, reference, "Not needed.");
 
-    const queued = await queuedFor(reference);
+    const queued = excludingPassengers(await queuedFor(reference));
     expect(queued).toHaveLength(1);
     expect(queued[0].event).toBe("cancelled");
     // Whoever did NOT act is the one who needs telling.
@@ -2052,7 +2147,7 @@ describe("cancelReservation notifications", () => {
     const reference = await submitted();
     await cancelReservation(db, admin, reference, "Fleet down.");
 
-    const queued = await queuedFor(reference);
+    const queued = excludingPassengers(await queuedFor(reference));
     expect(queued[0].recipient).toBe(requestor.email);
     expect((queued[0].payload as { cancelledBy: string }).cancelledBy).toBe(
       "admin_support",
@@ -2113,7 +2208,7 @@ describe("cancelReservation notifications", () => {
     );
     expect(result.ok).toBe(true);
 
-    const queued = await queuedFor(reference);
+    const queued = excludingPassengers(await queuedFor(reference));
     const cancelled = queued.find((q) => q.event === "cancelled");
     expect(cancelled?.recipient).toBe(requestor.email);
     expect(cancelled?.cc).toContain("zz.admin@wnotify.invalid");
@@ -2126,10 +2221,23 @@ describe("cancelReservation notifications", () => {
     const result = await cancelReservation(db, requestor, reference, "");
     expect(result.ok).toBe(true);
 
-    const queued = await queuedFor(reference);
+    const queued = excludingPassengers(await queuedFor(reference));
     const cancelled = queued.find((q) => q.event === "cancelled");
     expect(cancelled?.recipient).toContain("zz.admin@wnotify.invalid");
     expect(cancelled?.recipient).toContain("mm.admin@wnotify.invalid");
     expect(cancelled?.recipient).not.toContain(requestor.email);
+  });
+
+  it("also mails the trip's own passenger with an email", async () => {
+    const reference = await submitted();
+    await cancelReservation(db, requestor, reference, "Not needed.");
+
+    const passengerMail = passengerCopies(await queuedFor(reference));
+    expect(passengerMail).toHaveLength(1);
+    expect(passengerMail[0].template).toBe("booking-status-change");
+    expect(passengerMail[0].recipient).toBe("arielle.jimera@carelon.com");
+    expect((passengerMail[0].payload as { status: string }).status).toBe(
+      "Cancelled",
+    );
   });
 });

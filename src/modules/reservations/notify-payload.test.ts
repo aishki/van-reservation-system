@@ -5,7 +5,11 @@ import {
   blankPassenger,
   blankTrip,
 } from "@/modules/reservations/draft";
-import { requestInformationFromDraft } from "@/modules/reservations/notify";
+import {
+  passengerEmailsOf,
+  requestInformationForPassenger,
+  requestInformationFromDraft,
+} from "@/modules/reservations/notify";
 
 const requestor = { name: "Juan Cruz", email: "juan@example.invalid" };
 
@@ -149,5 +153,91 @@ describe("requestInformationFromDraft", () => {
     if (trip.mode !== "pickup") throw new Error("expected a pickup trip");
     expect(trip.referenceId).toBe("—");
     expect(trip.dropoffPoint).toBe("—");
+  });
+});
+
+/** Two trips with an overlapping passenger, for the passenger-copy helpers. */
+function multiTripDraft(): BookingDraft {
+  const draft = pickupDraft();
+  draft.trips = [
+    {
+      ...blankTrip(),
+      purpose: "Trip A",
+      pickupDate: "2026-08-10",
+      pickupTime: "07:30",
+      pickupPoint: "A",
+      dropoffPoint: "B",
+      passengers: [
+        { ...blankPassenger(), name: "Ana", email: "ana@x.invalid" },
+      ],
+    },
+    {
+      ...blankTrip(),
+      purpose: "Trip B",
+      pickupDate: "2026-08-11",
+      pickupTime: "08:00",
+      pickupPoint: "C",
+      dropoffPoint: "D",
+      passengers: [
+        // Same address as Trip A, different case — one passenger, not two.
+        { ...blankPassenger(), name: "Ana", email: "ANA@x.invalid" },
+        { ...blankPassenger(), name: "Ben", email: "ben@x.invalid" },
+      ],
+    },
+  ];
+  return draft;
+}
+
+describe("passengerEmailsOf", () => {
+  it("dedupes one address across trips, case-insensitively", () => {
+    const info = requestInformationFromDraft(
+      multiTripDraft(),
+      ["VR-1", "VR-2"],
+      requestor,
+    );
+    expect(passengerEmailsOf(info)).toEqual(["ana@x.invalid", "ben@x.invalid"]);
+  });
+
+  it("skips passengers with no email", () => {
+    const info = requestInformationFromDraft(
+      pickupDraft(),
+      ["VR-1042"],
+      requestor,
+    );
+    expect(passengerEmailsOf(info)).toEqual(["juan.cruz@carelon.com"]);
+  });
+});
+
+describe("requestInformationForPassenger", () => {
+  it("keeps only the trip(s) that passenger is actually on", () => {
+    const info = requestInformationFromDraft(
+      multiTripDraft(),
+      ["VR-1", "VR-2"],
+      requestor,
+    );
+    const benCopy = requestInformationForPassenger(info, "ben@x.invalid");
+    expect(benCopy.trips.map((t) => t.referenceId)).toEqual(["VR-2"]);
+  });
+
+  it("matches case-insensitively and keeps every trip the passenger is on", () => {
+    const info = requestInformationFromDraft(
+      multiTripDraft(),
+      ["VR-1", "VR-2"],
+      requestor,
+    );
+    const anaCopy = requestInformationForPassenger(info, "ANA@X.invalid");
+    expect(anaCopy.trips.map((t) => t.referenceId)).toEqual(["VR-1", "VR-2"]);
+  });
+
+  it("carries the same site, ride mode and requestor as the full digest", () => {
+    const info = requestInformationFromDraft(
+      multiTripDraft(),
+      ["VR-1", "VR-2"],
+      requestor,
+    );
+    const benCopy = requestInformationForPassenger(info, "ben@x.invalid");
+    expect(benCopy.site).toBe(info.site);
+    expect(benCopy.rideMode).toBe(info.rideMode);
+    expect(benCopy.requestor).toEqual(info.requestor);
   });
 });

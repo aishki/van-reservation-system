@@ -1,6 +1,7 @@
 import { Hr, Link, Section, Text } from "@react-email/components";
 import { render } from "@react-email/render";
 import {
+  type EmailAudience,
   RequestInformation,
   type RequestInformationInput,
 } from "@/modules/email/templates/request-information";
@@ -18,6 +19,8 @@ import type { EmailBody } from "@/modules/email/transport";
 export interface BookingSubmittedInput extends RequestInformationInput {
   /** Absolute link back to the requestor's bookings (built from APP_URL). */
   manageUrl: string;
+  /** Passenger copies get their own opening line — see `EmailAudience`. */
+  audience?: EmailAudience;
 }
 
 const pending = {
@@ -46,16 +49,30 @@ const pending = {
 export function BookingSubmittedEmail(input: BookingSubmittedInput) {
   const total = input.trips.length;
   const noun = total === 1 ? "trip" : "trips";
+  const isPassenger = input.audience === "passenger";
 
   return (
     <EmailShell
-      preview={`Received — ${total} ${noun} in ${input.site}, pending approval`}
+      preview={
+        isPassenger
+          ? `Added as a passenger — ${total} ${noun} in ${input.site}`
+          : `Received — ${total} ${noun} in ${input.site}, pending approval`
+      }
       heading="We received your request"
+      badge={isPassenger ? "Passenger Copy" : undefined}
       lead={
-        <>
-          Hi {input.requestor.name}, your van reservation for {total} {noun} in{" "}
-          {input.site} has been submitted.
-        </>
+        isPassenger ? (
+          <>
+            You have been added as a passenger by{" "}
+            <strong>{input.requestor.name}</strong> for a van reservation. See
+            trip details below.
+          </>
+        ) : (
+          <>
+            Hi {input.requestor.name}, your van reservation for {total} {noun}{" "}
+            in {input.site} has been submitted.
+          </>
+        )
       }
     >
       {/* The status is the point of this mail, so it gets its own block rather
@@ -108,5 +125,10 @@ export async function renderBookingSubmitted(
       ? `Van booking ${input.trips[0].referenceId} received — Pending approval`
       : `Van booking request received — ${total} trips, Pending approval`;
 
-  return { subject, html, text };
+  return {
+    subject:
+      input.audience === "passenger" ? `${subject} — Passenger Copy` : subject,
+    html,
+    text,
+  };
 }
