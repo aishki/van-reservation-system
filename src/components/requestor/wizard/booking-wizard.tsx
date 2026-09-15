@@ -106,6 +106,28 @@ export function BookingWizard({ mode, name, email }: BookingWizardProps) {
       ),
     }));
 
+  /**
+   * Inserts a copy of `trips[index]` right after it — next to the original,
+   * not appended at the end, since duplicating is almost always followed by
+   * "now change the one field that's different" on the trip you just made.
+   *
+   * The passenger array is copied element-by-element, not just spread: the
+   * outer `[...trips]` already gives the new trip its own array, but without
+   * this the passenger objects themselves stay shared with the original, so
+   * editing a name on the duplicate would silently edit it on the source too.
+   */
+  const duplicateTrip = (index: number) =>
+    setDraft((current) => {
+      const source = current.trips[index];
+      const copy: TripDraft = {
+        ...source,
+        passengers: source.passengers.map((passenger) => ({ ...passenger })),
+      };
+      const trips = [...current.trips];
+      trips.splice(index + 1, 0, copy);
+      return { ...current, trips };
+    });
+
   const goToStep = (next: WizardStep) => {
     setStep(next);
     setShowErrors(false);
@@ -226,6 +248,7 @@ export function BookingWizard({ mode, name, email }: BookingWizardProps) {
                 trips: [...current.trips, blankTrip()],
               }))
             }
+            onDuplicateTrip={duplicateTrip}
             onRemoveTrip={(index) =>
               setDraft((current) =>
                 current.trips.length === 1

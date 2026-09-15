@@ -61,3 +61,12 @@ export const WIZARD_NEXT =
 /** Secondary pill action — Back. */
 export const WIZARD_BACK =
   "cursor-pointer rounded-pill border-[1.5px] border-brand bg-background px-[34px] py-[15px] text-body font-semibold text-brand transition-colors hover:bg-brand-tint/40 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-primary";
+
+/**
+ * Duplicate-trip pill action, one per trip card in step 3. Green
+ * (`--color-success`) rather than brand purple on purpose — it sits right
+ * next to Remove (red) and reads as a third, distinct kind of action, not a
+ * variant of Continue.
+ */
+export const WIZARD_DUPLICATE_TRIP =
+  "flex cursor-pointer items-center gap-2 rounded-pill bg-success px-6 py-3 text-body font-semibold text-primary-foreground transition-[filter] hover:brightness-110 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-success";

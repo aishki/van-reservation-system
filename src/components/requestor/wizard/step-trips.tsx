@@ -1,6 +1,6 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { Copy, Trash2 } from "lucide-react";
 import { useId } from "react";
 import { Hint } from "@/components/common/hint";
 import { PassengerList } from "@/components/requestor/wizard/passenger-list";
@@ -15,6 +15,7 @@ import {
   STEP_HEADING,
   STEP_SUBHEADING,
   STEP_SUBSECTION,
+  WIZARD_DUPLICATE_TRIP,
 } from "@/components/requestor/wizard/wizard-theme";
 import { useFieldHistory } from "@/hooks/use-field-history";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ interface StepTripsProps {
   errors: DraftErrors;
   onTrip: (index: number, patch: Partial<TripDraft>) => void;
   onAddTrip: () => void;
+  onDuplicateTrip: (index: number) => void;
   onRemoveTrip: (index: number) => void;
   onPassenger: (
     tripIndex: number,
@@ -60,6 +62,7 @@ export function StepTrips({
   errors,
   onTrip,
   onAddTrip,
+  onDuplicateTrip,
   onRemoveTrip,
   onPassenger,
   onAddPassenger,
@@ -187,6 +190,17 @@ export function StepTrips({
                   {tripErrors.schedule}
                 </p>
               )}
+
+              <hr className="mt-6 mb-5 border-gray-6" />
+
+              <button
+                type="button"
+                onClick={() => onDuplicateTrip(index)}
+                className={WIZARD_DUPLICATE_TRIP}
+              >
+                <Copy aria-hidden="true" className="size-4" />
+                Duplicate {standby ? "Date" : "Trip"}
+              </button>
             </section>
           );
         })}
