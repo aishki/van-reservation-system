@@ -100,9 +100,14 @@ export interface TripErrors {
   details?: string;
   tower?: string;
   towerHead?: string;
-  /** One message for the passenger block as a whole. */
-  passengers?: string;
-  /** Per-row flags, so the offending input gets the red border, not all of them. */
+  /**
+   * Per-row flags — both the red border AND the message under that specific
+   * field come from these, not from a block-level string. A blank name and a
+   * malformed email are two different rows' problems even when they land in
+   * the same trip, and showing each under the field it is actually about is
+   * what lets them sit side by side instead of stacking as one generic
+   * "something in Passengers is wrong" line.
+   */
   passengerRows: { name: boolean; email: boolean }[];
   /** Required schedule fields left blank. */
   missing: Partial<Record<ScheduleField, true>>;
@@ -255,11 +260,6 @@ function validateTrips(draft: BookingDraft, errors: DraftErrors): void {
       const badEmail =
         passenger.email.trim() !== "" && !isValidEmail(passenger.email);
       tripErrors.passengerRows[row] = { name: badName, email: badEmail };
-      // Only a blank name sets the block-level message: a bad email already
-      // gets its OWN message right under that field (see PassengerRow), and
-      // repeating the identical sentence again here read as the same error
-      // shown twice — which, next to that field, it was.
-      if (badName) tripErrors.passengers = MESSAGES.passengersIncomplete;
     });
 
     // `.trim()` matters: the design document checks falsiness, so a
@@ -306,11 +306,8 @@ export function isDraftStepValid(errors: DraftErrors): boolean {
       trip.details === undefined &&
       trip.tower === undefined &&
       trip.towerHead === undefined &&
-      // NOT `trip.passengers === undefined`: that string is purely the
-      // BLOCK-level message to display, and a bad email with no bad name
-      // deliberately leaves it unset — its own per-row message already
-      // covers it (see `validateTrips`). The actual gate is every row's own
-      // flags, independent of whether there happens to be a block message.
+      // Gated on the row flags directly — there is no block-level passenger
+      // message anymore to check instead (see `TripErrors.passengerRows`).
       trip.passengerRows.every((row) => !row.name && !row.email) &&
       trip.schedule === undefined &&
       Object.keys(trip.missing).length === 0,

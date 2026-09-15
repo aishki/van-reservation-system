@@ -160,7 +160,7 @@ describe("PassengerList / PassengerRow", () => {
     expect(remove.disabled).toBe(true);
   });
 
-  it("shows the block-level error message when passed one", () => {
+  it("shows the name error under the name field, not a block-level message", () => {
     renderWithHistory(
       <PassengerList
         tower=""
@@ -169,7 +169,6 @@ describe("PassengerList / PassengerRow", () => {
         errors={{
           passengerRows: [{ name: true, email: false }],
           missing: {},
-          passengers: "Every passenger needs a name.",
         }}
         tripLabel="Trip 1"
         onChange={() => {}}
@@ -178,9 +177,36 @@ describe("PassengerList / PassengerRow", () => {
       />,
     );
 
-    expect(screen.getByRole("alert").textContent).toBe(
-      "Every passenger needs a name.",
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toBe("Every passenger needs a name.");
+    expect(nameInputs()[0].getAttribute("aria-describedby")).toBe(alert.id);
+  });
+
+  it("shows a bad name and a bad email side by side on the same row", () => {
+    renderWithHistory(
+      <PassengerList
+        tower=""
+        onTower={() => {}}
+        passengers={[blankPassenger()]}
+        errors={{
+          passengerRows: [{ name: true, email: true }],
+          missing: {},
+        }}
+        tripLabel="Trip 1"
+        onChange={() => {}}
+        onAdd={() => {}}
+        onRemove={() => {}}
+      />,
     );
+
+    const alerts = screen.getAllByRole("alert");
+    expect(alerts.map((a) => a.textContent)).toEqual([
+      "Every passenger needs a name.",
+      "Enter a valid email address.",
+    ]);
+    // Both in ONE shared row rather than two stacked ones — the point of
+    // the fix, so a duplicate assertion here is the regression this guards.
+    expect(alerts[0].parentElement).toBe(alerts[1].parentElement);
   });
 
   it("marks only the row an error flag points at", () => {

@@ -162,12 +162,6 @@ export function PassengerList({
           />
         ))}
 
-        {errors.passengers !== undefined && (
-          <p role="alert" className={FIELD_ERROR}>
-            {errors.passengers}
-          </p>
-        )}
-
         <button
           type="button"
           onClick={onAdd}
@@ -228,6 +222,7 @@ function PassengerRow({
 }: PassengerRowProps) {
   const nameId = useId();
   const emailId = useId();
+  const nameErrorId = useId();
   const emailErrorId = useId();
 
   return (
@@ -258,6 +253,7 @@ function PassengerRow({
           suggestions={nameSuggestions}
           placeholder="Juan Dela Cruz"
           invalid={row.name}
+          aria-describedby={row.name ? nameErrorId : undefined}
           onChange={(name) => onChange({ name })}
           className={cn(FIELD_SM, fieldBorder(row.name))}
         />
@@ -295,13 +291,28 @@ function PassengerRow({
         </Hint>
       </div>
 
-      {row.email && (
+      {(row.name || row.email) && (
+        // One shared error row, not two independent ones: a name problem and
+        // an email problem on the SAME passenger are two different fields'
+        // messages, and this is what lets them sit side by side — under
+        // their own field, in the exact columns Name and Email already
+        // occupy above — rather than one stacking on top of the other.
         <div className={cn(ROW_GRID, "mt-1")}>
           <span aria-hidden="true" />
-          <span aria-hidden="true" />
-          <p id={emailErrorId} role="alert" className={FIELD_ERROR}>
-            {MESSAGES.passengerEmailFormat}
-          </p>
+          {row.name ? (
+            <p id={nameErrorId} role="alert" className={FIELD_ERROR}>
+              {MESSAGES.passengersIncomplete}
+            </p>
+          ) : (
+            <span aria-hidden="true" />
+          )}
+          {row.email ? (
+            <p id={emailErrorId} role="alert" className={FIELD_ERROR}>
+              {MESSAGES.passengerEmailFormat}
+            </p>
+          ) : (
+            <span aria-hidden="true" />
+          )}
           <span aria-hidden="true" />
         </div>
       )}

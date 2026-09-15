@@ -244,11 +244,6 @@ describe("step 3 — trip details", () => {
     expect(rows[0]).toEqual({ name: false, email: false });
     expect(rows[1]).toEqual({ name: false, email: true });
     expect(rows[2]).toEqual({ name: true, email: false });
-    // A blank name wins over a malformed email — it's the harder blocker,
-    // and validateTrips only overwrites the block message for a bad name.
-    expect(validateStep(draft, 3).trips[0].passengers).toBe(
-      MESSAGES.passengersIncomplete,
-    );
   });
 
   it("accepts a passenger with no email at all — many are external clients", () => {
@@ -257,10 +252,9 @@ describe("step 3 — trip details", () => {
     const errors = validateStep(draft, 3).trips[0];
 
     expect(errors.passengerRows[0]).toEqual({ name: false, email: false });
-    expect(errors.passengers).toBeUndefined();
   });
 
-  it("flags a malformed email on its row without a block-level message", () => {
+  it("flags a malformed email on its own row", () => {
     const draft = validDraft();
     draft.trips[0].passengers = [
       { name: "Dela Cruz, Juan", email: "not-an-email" },
@@ -268,10 +262,6 @@ describe("step 3 — trip details", () => {
     const errors = validateStep(draft, 3).trips[0];
 
     expect(errors.passengerRows[0]).toEqual({ name: false, email: true });
-    // No block-level message here: a bad email already gets its OWN message
-    // right under that field (`PassengerRow`), so `errors.passengers` staying
-    // undefined is what keeps the two from saying the same sentence twice.
-    expect(errors.passengers).toBeUndefined();
   });
 
   it("validates every trip independently, not just the first", () => {
@@ -448,17 +438,17 @@ describe("isDraftStepValid", () => {
   });
 
   it("blocks the step on a malformed email even with no bad name anywhere", () => {
-    // Regression: `trip.passengers` (the block-level MESSAGE) is deliberately
-    // left unset for an email-only problem — its own per-row message already
-    // covers it. Gating on that string instead of the row flags let a bad
-    // email through silently, because nothing ever set `showErrors`.
+    // Regression: there is no block-level passenger MESSAGE to gate on —
+    // both a blank name and a malformed email show only under their own
+    // field (see `passenger-list.tsx`). Gating step-validity on that string
+    // instead of the row flags let a bad email through silently, because
+    // nothing ever set `showErrors`.
     const draft = validDraft();
     draft.trips[0].passengers = [
       { name: "Dela Cruz, Juan", email: "not-an-email" },
     ];
     const errors = validateStep(draft, 3);
 
-    expect(errors.trips[0].passengers).toBeUndefined();
     expect(isDraftStepValid(errors)).toBe(false);
   });
 });
