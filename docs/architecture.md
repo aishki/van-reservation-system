@@ -485,6 +485,30 @@ time, **enforced by a drift-guard test** that scans `src/` for
 `toLocaleDateString`, `toLocaleTimeString`, `toLocaleString`, and
 `Intl.DateTimeFormat` outside that file.
 
+#### Display is pinned to Manila; the instant comes from the server
+
+`formatInstant` (`lib/tz.ts`) passes `timeZone: "Asia/Manila"` explicitly to
+`Intl.DateTimeFormat` — it never reads the runtime's local timezone. That
+means a column like the master list's **Last Updated** always renders in PHT,
+regardless of what timezone the *viewer's* machine or the *server's* machine
+is set to. Changing either one's timezone setting changes nothing: there is
+no code path that formats a timestamp any other way.
+
+The `timestamptz` value being formatted is never client-supplied. `updated_at`
+is set **server-side only** — Postgres's own `now()` default on insert, and an
+explicit `new Date()` inside `write.ts` on every admin decision or edit. No
+wire schema (`wire.ts`) accepts a timestamp field from the client, so nothing
+in a request body can set or backdate it.
+
+Consequently: an admin manipulating their own browser or PC clock while using
+the deployed app has zero effect on any stored timestamp — they are only
+viewing server-rendered values, never supplying them. The one place a clock
+*does* matter is **local development**, where the Next.js dev server and the
+Postgres container both run on the same laptop as the browser — there, the
+laptop's actual system clock (not its timezone setting) is what `now()` and
+`new Date()` read, so manually changing the date/time while `pnpm dev` is
+running will be baked into whatever is written during that session.
+
 ---
 
 ## 10. Conventions that must not regress
