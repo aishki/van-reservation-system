@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BookingDone } from "@/components/requestor/wizard/booking-done";
+import { DuplicateTripDialog } from "@/components/requestor/wizard/duplicate-trip-dialog";
 import { StepDetails } from "@/components/requestor/wizard/step-details";
 import { StepReview } from "@/components/requestor/wizard/step-review";
 import { StepTrips } from "@/components/requestor/wizard/step-trips";
@@ -19,6 +20,7 @@ import {
   blankPassenger,
   blankTrip,
   type DraftErrors,
+  findDuplicateTripPairs,
   isDraftStepValid,
   type PassengerDraft,
   type TripDraft,
@@ -72,6 +74,10 @@ export function BookingWizard({ mode, name, email }: BookingWizardProps) {
   const [draft, setDraft] = useState<BookingDraft>(() => blankDraft(mode));
   const [step, setStep] = useState<WizardStep>(2);
   const [showErrors, setShowErrors] = useState(false);
+  // Non-empty only while the duplicate-trip dialog is open, blocking step 3
+  // → 4. Cleared (not just hidden) on dismiss, so editing a trip and hitting
+  // Continue again always re-checks fresh rather than reopening stale pairs.
+  const [duplicatePairs, setDuplicatePairs] = useState<[number, number][]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | undefined>(undefined);
   const [submission, setSubmission] = useState<Submission | null>(null);
@@ -142,7 +148,18 @@ export function BookingWizard({ mode, name, email }: BookingWizardProps) {
       return;
     }
     if (step === 2) return goToStep(3);
-    if (step === 3) return goToStep(4);
+    if (step === 3) {
+      // Checked only once every trip is individually valid (see
+      // `findDuplicateTripPairs`) — a still-blank trip is technically a
+      // "duplicate" of another blank one too, but the real problem there is
+      // the missing fields the errors above already flag.
+      const pairs = findDuplicateTripPairs(draft.trips);
+      if (pairs.length > 0) {
+        setDuplicatePairs(pairs);
+        return;
+      }
+      return goToStep(4);
+    }
     void submit();
   };
 
@@ -312,6 +329,14 @@ export function BookingWizard({ mode, name, email }: BookingWizardProps) {
           </button>
         </div>
       </div>
+
+      {duplicatePairs.length > 0 && (
+        <DuplicateTripDialog
+          pairs={duplicatePairs}
+          standby={draft.mode === "standby"}
+          onDismiss={() => setDuplicatePairs([])}
+        />
+      )}
     </div>
   );
 }

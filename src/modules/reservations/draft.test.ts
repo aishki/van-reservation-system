@@ -3,6 +3,7 @@ import {
   type BookingDraft,
   blankDraft,
   blankTrip,
+  findDuplicateTripPairs,
   isDraftStepValid,
   isValidEmail,
   isValidMobile,
@@ -442,5 +443,91 @@ describe("isDraftStepValid", () => {
 
     expect(errors.trips[0].passengers).toBeUndefined();
     expect(isDraftStepValid(errors)).toBe(false);
+  });
+});
+
+describe("findDuplicateTripPairs", () => {
+  it("flags two identical trips — the un-edited Duplicate Trip case", () => {
+    const trips = [validTrip("pickup"), validTrip("pickup")];
+    expect(findDuplicateTripPairs(trips)).toEqual([[0, 1]]);
+  });
+
+  it("says nothing about a single trip", () => {
+    expect(findDuplicateTripPairs([validTrip("pickup")])).toEqual([]);
+  });
+
+  it("clears once any compared field differs", () => {
+    const fields: Partial<TripDraft>[] = [
+      { purpose: "HR/TA Related" },
+      { details: "A different reason for this one." },
+      { towerHead: "Someone Else" },
+      { pickupDate: "2026-08-11" },
+      { pickupTime: "10:00" },
+      { pickupPoint: "A different lobby" },
+      { dropoffPoint: "A different building" },
+      { passengers: [{ name: "Someone Else", email: "" }] },
+    ];
+    for (const patch of fields) {
+      const trips = [validTrip("pickup"), { ...validTrip("pickup"), ...patch }];
+      expect(findDuplicateTripPairs(trips)).toEqual([]);
+    }
+  });
+
+  it("is exactly the escape hatch the duplicate-trip dialog points at", () => {
+    // The dialog tells a requestor who means it to explain why in Details.
+    // Confirms that alone is enough to clear the flag — nothing else has to
+    // change for two otherwise-real duplicate trips to stop looking like one
+    // request submitted twice.
+    const trips = [
+      validTrip("pickup"),
+      { ...validTrip("pickup"), details: "Second van needed for overflow." },
+    ];
+    expect(findDuplicateTripPairs(trips)).toEqual([]);
+  });
+
+  it("reports every duplicate pair among three identical trips", () => {
+    const trips = [
+      validTrip("pickup"),
+      validTrip("pickup"),
+      validTrip("pickup"),
+    ];
+    expect(findDuplicateTripPairs(trips)).toEqual([
+      [0, 1],
+      [0, 2],
+      [1, 2],
+    ]);
+  });
+
+  it("only flags the pair that actually matches, not every combination", () => {
+    const trips = [
+      validTrip("pickup"),
+      validTrip("pickup"),
+      { ...validTrip("pickup"), pickupPoint: "A different lobby" },
+    ];
+    expect(findDuplicateTripPairs(trips)).toEqual([[0, 1]]);
+  });
+
+  it("works for standby trips using the standby-only schedule fields", () => {
+    const trips = [validTrip("standby"), validTrip("standby")];
+    expect(findDuplicateTripPairs(trips)).toEqual([[0, 1]]);
+  });
+
+  it("treats passenger order as significant", () => {
+    const trip = validTrip("pickup");
+    const reordered: TripDraft = {
+      ...trip,
+      passengers: [
+        { name: "Reyes, Ana", email: "" },
+        { name: "Dela Cruz, Juan", email: "" },
+      ],
+    };
+    const same: TripDraft = {
+      ...trip,
+      passengers: [
+        { name: "Dela Cruz, Juan", email: "" },
+        { name: "Reyes, Ana", email: "" },
+      ],
+    };
+    expect(findDuplicateTripPairs([reordered, same])).toEqual([]);
   });
 });

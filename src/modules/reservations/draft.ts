@@ -300,3 +300,66 @@ export function isDraftStepValid(errors: DraftErrors): boolean {
       Object.keys(trip.missing).length === 0,
   );
 }
+
+function passengersMatch(a: PassengerDraft[], b: PassengerDraft[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every(
+    (passenger, i) =>
+      passenger.name.trim() === b[i].name.trim() &&
+      passenger.email.trim() === b[i].email.trim(),
+  );
+}
+
+/**
+ * True when two trips would read as the SAME request submitted twice: same
+ * purpose, details, tower head, passengers (in order), and schedule.
+ *
+ * Compares every field on `TripDraft`, not just the ones the design brief
+ * names (purpose/passengers/points/date/time) — `details` and `towerHead`
+ * are included on purpose. `details` is deliberately the escape hatch: two
+ * otherwise-identical trips stop being "the same request" the moment the
+ * requestor writes a reason for the second one there, which is exactly the
+ * UI's advice when the duplicate warning fires. Comparing the mode-specific
+ * fields (`pickupDate`/… vs `startDate`/…) unconditionally is safe without
+ * checking `draft.mode` first: every trip in one draft shares a mode, so the
+ * fields the OTHER mode would use are blank strings on both sides already.
+ */
+function tripsAreDuplicates(a: TripDraft, b: TripDraft): boolean {
+  return (
+    a.purpose.trim() === b.purpose.trim() &&
+    a.details.trim() === b.details.trim() &&
+    a.towerHead.trim() === b.towerHead.trim() &&
+    passengersMatch(a.passengers, b.passengers) &&
+    a.pickupDate === b.pickupDate &&
+    a.pickupTime === b.pickupTime &&
+    a.pickupPoint.trim() === b.pickupPoint.trim() &&
+    a.dropoffPoint.trim() === b.dropoffPoint.trim() &&
+    a.startDate === b.startDate &&
+    a.endDate === b.endDate &&
+    a.startTime === b.startTime &&
+    a.endTime === b.endTime
+  );
+}
+
+/**
+ * Every pair of trips in `trips` identical enough to be the same request
+ * twice — almost always an un-edited "Duplicate Trip" click, not two
+ * intentionally separate bookings. `i < j` in every returned pair.
+ *
+ * Deliberately run only AFTER `isDraftStepValid` passes: two still-blank
+ * trips are "duplicates" by this definition too, but the real problem there
+ * is the missing required fields, which the existing per-field errors
+ * already say — flagging them as duplicates on top would be confusing, not
+ * additionally helpful.
+ */
+export function findDuplicateTripPairs(
+  trips: readonly TripDraft[],
+): [number, number][] {
+  const pairs: [number, number][] = [];
+  for (let i = 0; i < trips.length; i++) {
+    for (let j = i + 1; j < trips.length; j++) {
+      if (tripsAreDuplicates(trips[i], trips[j])) pairs.push([i, j]);
+    }
+  }
+  return pairs;
+}
