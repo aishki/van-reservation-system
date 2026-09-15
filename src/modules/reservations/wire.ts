@@ -39,6 +39,7 @@ const passengerSchema = z.object({
 const tripSchema = z.object({
   purpose: z.string(),
   details: z.string(),
+  tower: z.string(),
   towerHead: z.string(),
   passengers: z.array(passengerSchema).min(1).max(MAX_PASSENGERS_PER_TRIP),
   pickupDate: z.string(),

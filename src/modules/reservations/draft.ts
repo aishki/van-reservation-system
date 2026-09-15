@@ -1,5 +1,5 @@
 import { comparePlainDates, comparePlainTimes } from "@/lib/tz";
-import { isTripPurpose } from "@/modules/reservations/reference";
+import { isTower, isTripPurpose } from "@/modules/reservations/reference";
 import type { RideMode, SiteLocation } from "@/modules/reservations/types";
 
 /**
@@ -33,6 +33,13 @@ export interface TripDraft {
    * which purpose was picked.
    */
   details: string;
+  /**
+   * Which business unit this trip's passengers belong to — required on every
+   * trip, both modes. When passengers span more than one tower, which one
+   * goes here is the requestor's own call; the form says so via the info hint
+   * next to the field rather than trying to collect one per passenger.
+   */
+  tower: string;
   /** Required for standby only — the cost is charged to this Tower Head. */
   towerHead: string;
   passengers: PassengerDraft[];
@@ -91,6 +98,7 @@ export function scheduleFieldsFor(mode: RideMode): readonly ScheduleField[] {
 export interface TripErrors {
   purpose?: string;
   details?: string;
+  tower?: string;
   towerHead?: string;
   /** One message for the passenger block as a whole. */
   passengers?: string;
@@ -115,7 +123,9 @@ export const MESSAGES = {
   purposeRequired: "Select a purpose.",
   purposeUnknown: "Choose a purpose from the list.",
   detailsRequired: "Add details for this trip's purpose.",
-  towerRequired: "Select an approving Tower Head.",
+  towerRequired: "Select a tower.",
+  towerUnknown: "Choose a tower from the list.",
+  towerHeadRequired: "Select an approving Tower Head.",
   passengersIncomplete: "Every passenger needs a name.",
   passengerEmailFormat: "Enter a valid email address.",
   scheduleIncomplete: "Fill in every required schedule field.",
@@ -132,6 +142,7 @@ export function blankTrip(): TripDraft {
   return {
     purpose: "",
     details: "",
+    tower: "",
     towerHead: "",
     passengers: [blankPassenger()],
     pickupDate: "",
@@ -231,8 +242,12 @@ function validateTrips(draft: BookingDraft, errors: DraftErrors): void {
     if (trip.details.trim() === "")
       tripErrors.details = MESSAGES.detailsRequired;
 
+    const tower = trip.tower.trim();
+    if (tower === "") tripErrors.tower = MESSAGES.towerRequired;
+    else if (!isTower(tower)) tripErrors.tower = MESSAGES.towerUnknown;
+
     if (standby && trip.towerHead.trim() === "")
-      tripErrors.towerHead = MESSAGES.towerRequired;
+      tripErrors.towerHead = MESSAGES.towerHeadRequired;
 
     trip.passengers.forEach((passenger, row) => {
       const badName = passenger.name.trim() === "";
@@ -289,6 +304,7 @@ export function isDraftStepValid(errors: DraftErrors): boolean {
     (trip) =>
       trip.purpose === undefined &&
       trip.details === undefined &&
+      trip.tower === undefined &&
       trip.towerHead === undefined &&
       // NOT `trip.passengers === undefined`: that string is purely the
       // BLOCK-level message to display, and a bad email with no bad name
@@ -312,11 +328,12 @@ function passengersMatch(a: PassengerDraft[], b: PassengerDraft[]): boolean {
 
 /**
  * True when two trips would read as the SAME request submitted twice: same
- * purpose, details, tower head, passengers (in order), and schedule.
+ * purpose, details, tower, tower head, passengers (in order), and schedule.
  *
  * Compares every field on `TripDraft`, not just the ones the design brief
- * names (purpose/passengers/points/date/time) — `details` and `towerHead`
- * are included on purpose. `details` is deliberately the escape hatch: two
+ * names (purpose/passengers/points/date/time) — `details`, `tower` and
+ * `towerHead` are included on purpose. `details` is deliberately the escape
+ * hatch: two
  * otherwise-identical trips stop being "the same request" the moment the
  * requestor writes a reason for the second one there, which is exactly the
  * UI's advice when the duplicate warning fires. Comparing the mode-specific
@@ -328,6 +345,7 @@ function tripsAreDuplicates(a: TripDraft, b: TripDraft): boolean {
   return (
     a.purpose.trim() === b.purpose.trim() &&
     a.details.trim() === b.details.trim() &&
+    a.tower.trim() === b.tower.trim() &&
     a.towerHead.trim() === b.towerHead.trim() &&
     passengersMatch(a.passengers, b.passengers) &&
     a.pickupDate === b.pickupDate &&

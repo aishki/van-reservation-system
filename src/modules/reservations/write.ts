@@ -232,6 +232,7 @@ export async function submitBooking(
           requestor_mobile: mobile,
           purpose: trip.purpose.trim(),
           details: trip.details.trim(),
+          tower: trip.tower.trim(),
           start_at: schedule.startAt,
           end_at: schedule.endAt,
           pickup_location: trip.pickupPoint.trim(),

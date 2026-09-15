@@ -179,6 +179,7 @@ function pickupTrip(overrides: Record<string, string> = {}) {
   return {
     purpose: "Travel-Related (Airport Transfers)",
     details: "Airport transfer for the site visit.",
+    tower: "Ops Support",
     towerHead: "",
     passengers: [
       { name: " Jimera, Arielle ", email: "  arielle.jimera@carelon.com  " },
@@ -201,6 +202,7 @@ function standbyTrip() {
   return {
     purpose: "Others",
     details: "Standby coverage for the offsite.",
+    tower: "Corp Support",
     towerHead: "Abanto, Norlyn",
     passengers: [
       { name: "Jimera, Arielle", email: "arielle.jimera@carelon.com" },
@@ -293,6 +295,7 @@ describe("submitBooking", () => {
     expect(row.status).toBe("pending");
     expect(row.ride_mode).toBe("pickup");
     expect(row.site).toBe("manila");
+    expect(row.tower).toBe("Ops Support");
     expect(row.dropoff_location).toBe("AGT Building");
     expect(row.end_at).toBeNull();
     expect(row.approving_tower_head).toBeNull();

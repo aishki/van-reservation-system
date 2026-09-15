@@ -705,6 +705,11 @@ export function TripDrawer({
               }
               lockedHint="Tick 'Trip details changed' to edit."
             />
+            <DrawerField
+              label="Tower"
+              value={detail.tower ?? EM_DASH}
+              lockedHint="Submitted by the requestor — not editable."
+            />
             {standby && (
               <DrawerField
                 label="Approving Tower Head"
@@ -784,10 +789,10 @@ export function TripDrawer({
                   // passengers may share a name — so the stable, unique key is
                   // position: the list is a read-only snapshot of a fixed,
                   // already-submitted order, never reordered or filtered.
-                  // biome-ignore lint/suspicious/noArrayIndexKey: read-only snapshot in a fixed order, see above
                   const key = index;
                   const contact = passenger.email ?? passenger.domainId;
                   return (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: read-only snapshot in a fixed order, see above
                     <li key={key}>
                       {passenger.name}{" "}
                       {contact !== null && (

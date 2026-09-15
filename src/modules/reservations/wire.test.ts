@@ -12,6 +12,7 @@ function trip(overrides: Record<string, unknown> = {}) {
   return {
     purpose: "Travel-Related (Airport Transfers)",
     details: "Airport transfer for the site visit.",
+    tower: "Ops Support",
     towerHead: "",
     passengers: [
       { name: "Jimera, Arielle", email: "arielle.jimera@carelon.com" },

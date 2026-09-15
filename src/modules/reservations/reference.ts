@@ -54,6 +54,34 @@ export function isTripPurpose(value: unknown): value is TripPurpose {
 }
 
 /**
+ * Which business unit a trip's passengers belong to — closed vocabulary like
+ * `TRIP_PURPOSES`, for the same reason: display and reporting only, nothing
+ * in the app branches on it, so a database CHECK constraint would mean a
+ * migration per revision for no integrity gain.
+ *
+ * Named distinctly from `DEV_TOWER_HEADS`/`towerHead` on purpose even though
+ * the two are related in the real org (a Tower Head heads one of these
+ * Towers) — that relationship isn't modelled here, since nothing today needs
+ * to enforce which head goes with which tower, only record which tower a
+ * TRIP was for.
+ */
+export const TOWERS = [
+  "Contact Center Solutions",
+  "Carelon Services",
+  "Clinical Services",
+  "Ops Support",
+  "Corp Support",
+] as const;
+
+export type Tower = (typeof TOWERS)[number];
+
+export function isTower(value: unknown): value is Tower {
+  return (
+    typeof value === "string" && (TOWERS as readonly string[]).includes(value)
+  );
+}
+
+/**
  * DEV FIXTURE — replace with a query.
  *
  * Standby bookings are charged to an approving Tower Head, so this list decides

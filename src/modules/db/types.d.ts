@@ -129,6 +129,7 @@ export interface Reservations {
   site: string;
   start_at: Timestamp;
   status: string;
+  tower: string | null;
   updated_at: Generated<Timestamp>;
   vendor: string | null;
   version: Generated<number>;

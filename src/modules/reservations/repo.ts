@@ -233,6 +233,7 @@ function detailQuery(db: Kysely<DB>) {
     "r.version",
     "r.requestor_email",
     "r.requestor_mobile",
+    "r.tower",
     "r.approving_tower_head",
     "r.vendor",
     "r.cost_php",
@@ -332,6 +333,7 @@ export async function getReservationDetail(
     ...base,
     requestorEmail: row.requestor_email,
     requestorMobile: row.requestor_mobile,
+    tower: row.tower,
     towerHead: row.approving_tower_head,
     passengers: passengers.map((p) => ({
       domainId: p.domain_id,

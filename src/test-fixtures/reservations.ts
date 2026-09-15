@@ -252,6 +252,7 @@ export function reservationDetailFrom(row: ReservationRow): ReservationDetail {
     ...row,
     requestorEmail: `${emailLocalPart(row.requestor)}@carelon.com`,
     requestorMobile: "09567567122",
+    tower: "Ops Support",
     towerHead: standby ? "Abanto, Norlyn" : null,
     passengers: standby
       ? [

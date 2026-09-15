@@ -30,6 +30,7 @@ function validTrip(mode: RideMode): TripDraft {
     ...blankTrip(),
     purpose: "IT-Related",
     details: "Laptop replacement drop-off.",
+    tower: "Ops Support",
     passengers: [{ name: "Dela Cruz, Juan", email: "" }],
   };
   if (mode === "standby") {
@@ -174,6 +175,22 @@ describe("step 3 — trip details", () => {
     );
   });
 
+  it("requires a tower, on both modes", () => {
+    for (const mode of ["pickup", "standby"] as const) {
+      const draft = validDraft(mode);
+      draft.trips[0].tower = "";
+      expect(validateStep(draft, 3).trips[0].tower).toBe(
+        MESSAGES.towerRequired,
+      );
+    }
+  });
+
+  it("refuses a tower outside the closed set", () => {
+    const draft = validDraft();
+    draft.trips[0].tower = "Made-Up Tower";
+    expect(validateStep(draft, 3).trips[0].tower).toBe(MESSAGES.towerUnknown);
+  });
+
   // Details is required for every purpose, not only "Others" — the client's
   // admin wants context on every booking.
   it("requires details for every purpose, not only Others", () => {
@@ -205,7 +222,7 @@ describe("step 3 — trip details", () => {
     const standby = validDraft("standby");
     standby.trips[0].towerHead = "";
     expect(validateStep(standby, 3).trips[0].towerHead).toBe(
-      MESSAGES.towerRequired,
+      MESSAGES.towerHeadRequired,
     );
 
     // The pickup flow never shows the field, so demanding it would deadlock the
@@ -460,6 +477,7 @@ describe("findDuplicateTripPairs", () => {
     const fields: Partial<TripDraft>[] = [
       { purpose: "HR/TA Related" },
       { details: "A different reason for this one." },
+      { tower: "Carelon Services" },
       { towerHead: "Someone Else" },
       { pickupDate: "2026-08-11" },
       { pickupTime: "10:00" },

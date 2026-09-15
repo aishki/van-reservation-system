@@ -7,6 +7,12 @@ import { cn } from "@/lib/utils";
 
 interface WizardSelectProps {
   label: string;
+  /**
+   * Rendered right after the label text — an info icon wrapped in a `Hint`
+   * tooltip, for a field whose closed list needs a sentence of context
+   * (e.g. Tower) that would be noise printed under the field permanently.
+   */
+  labelHint?: React.ReactNode;
   /** Shown when nothing is chosen yet, e.g. "Select Purpose". */
   placeholder: string;
   value: string;
@@ -41,6 +47,7 @@ interface WizardSelectProps {
  */
 export function WizardSelect({
   label,
+  labelHint,
   placeholder,
   value,
   options,
@@ -122,8 +129,12 @@ export function WizardSelect({
 
   return (
     <div className="relative mb-5" ref={rootRef}>
-      <span id={labelId} className="mb-2 block text-body text-gray-1">
+      <span
+        id={labelId}
+        className="mb-2 flex items-center gap-1.5 text-body text-gray-1"
+      >
         {label} <span className="text-error">*</span>
+        {labelHint}
       </span>
 
       <button

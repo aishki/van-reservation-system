@@ -103,6 +103,7 @@ function pickupRows(trip: TripDraft) {
     <>
       <Row label="Purpose" value={trip.purpose || EM_DASH} />
       <Row label="Details" value={trip.details || EM_DASH} />
+      <Row label="Tower" value={trip.tower || EM_DASH} />
       <Row
         label="Pickup"
         value={formatPlainDateTime(trip.pickupDate, trip.pickupTime) ?? EM_DASH}
@@ -123,6 +124,7 @@ function standbyRows(trip: TripDraft) {
     <>
       <Row label="Purpose" value={trip.purpose || EM_DASH} />
       <Row label="Details" value={trip.details || EM_DASH} />
+      <Row label="Tower" value={trip.tower || EM_DASH} />
       <Row label="Approving Tower Head" value={trip.towerHead || EM_DASH} />
       <Row
         label="Standby Window"

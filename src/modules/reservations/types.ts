@@ -423,6 +423,12 @@ export type VanInput =
 export interface ReservationDetail extends ReservationRow {
   requestorEmail: string;
   requestorMobile: string;
+  /**
+   * The business unit this trip's passengers belong to. Nullable like
+   * `towerHead` below, and for the same reason: every reservation submitted
+   * before this field existed genuinely has no answer for it.
+   */
+  tower: string | null;
   /** Standby only — the Tower Head the cost is charged to. */
   towerHead: string | null;
   passengers: PassengerRef[];

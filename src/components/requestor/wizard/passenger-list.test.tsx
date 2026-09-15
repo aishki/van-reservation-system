@@ -15,6 +15,7 @@ import {
   type PassengerDraft,
   type TripErrors,
 } from "@/modules/reservations/draft";
+import { TOWERS } from "@/modules/reservations/reference";
 import type { FieldHistory } from "@/modules/reservations/types";
 
 const apiFetchMock = vi.fn();
@@ -64,10 +65,13 @@ function Harness() {
   const [passengers, setPassengers] = useState<PassengerDraft[]>([
     blankPassenger(),
   ]);
+  const [tower, setTower] = useState("");
 
   return (
     <Providers>
       <PassengerList
+        tower={tower}
+        onTower={setTower}
         passengers={passengers}
         errors={blankErrors(passengers.length)}
         tripLabel="Trip 1"
@@ -159,6 +163,8 @@ describe("PassengerList / PassengerRow", () => {
   it("shows the block-level error message when passed one", () => {
     renderWithHistory(
       <PassengerList
+        tower=""
+        onTower={() => {}}
         passengers={[blankPassenger()]}
         errors={{
           passengerRows: [{ name: true, email: false }],
@@ -180,6 +186,8 @@ describe("PassengerList / PassengerRow", () => {
   it("marks only the row an error flag points at", () => {
     renderWithHistory(
       <PassengerList
+        tower=""
+        onTower={() => {}}
         passengers={[blankPassenger(), blankPassenger()]}
         errors={{
           passengerRows: [
@@ -203,6 +211,8 @@ describe("PassengerList / PassengerRow", () => {
     const onChange = vi.fn();
     renderWithHistory(
       <PassengerList
+        tower=""
+        onTower={() => {}}
         passengers={[blankPassenger()]}
         errors={blankErrors(1)}
         tripLabel="Trip 1"
@@ -234,6 +244,8 @@ describe("PassengerList / PassengerRow", () => {
   it("filters suggestions to ones matching what's typed", async () => {
     renderWithHistory(
       <PassengerList
+        tower=""
+        onTower={() => {}}
         passengers={[{ name: "Mar", email: "" }]}
         errors={blankErrors(1)}
         tripLabel="Trip 1"
@@ -251,5 +263,55 @@ describe("PassengerList / PassengerRow", () => {
     });
 
     expect(screen.queryByRole("option", { name: "Juan Cruz" })).toBeNull();
+  });
+
+  it("offers every tower and reports the pick", async () => {
+    apiFetchMock.mockResolvedValue(NO_HISTORY);
+    render(<Harness />);
+    await screen.findByPlaceholderText("Juan Dela Cruz");
+
+    fireEvent.click(screen.getByRole("combobox", { name: /Tower/ }));
+    for (const tower of TOWERS) {
+      expect(screen.getByRole("option", { name: tower })).toBeTruthy();
+    }
+
+    fireEvent.click(screen.getByRole("option", { name: "Clinical Services" }));
+    expect(
+      screen.getByRole("combobox", { name: /Tower/ }).textContent,
+    ).toContain("Clinical Services");
+  });
+
+  it("marks the Tower trigger invalid and shows its message", () => {
+    renderWithHistory(
+      <PassengerList
+        tower=""
+        onTower={() => {}}
+        passengers={[blankPassenger()]}
+        errors={{ ...blankErrors(1), tower: "Select a tower." }}
+        tripLabel="Trip 1"
+        onChange={() => {}}
+        onAdd={() => {}}
+        onRemove={() => {}}
+      />,
+    );
+
+    const trigger = screen.getByRole("combobox", { name: /Tower/ });
+    expect(trigger.getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByText("Select a tower.")).toBeTruthy();
+  });
+
+  it("gives the Tower info icon a real accessible name", async () => {
+    apiFetchMock.mockResolvedValue(NO_HISTORY);
+    render(<Harness />);
+    await screen.findByPlaceholderText("Juan Dela Cruz");
+
+    // Coverage for the trigger existing and being announceable; the tooltip
+    // CONTENT it reveals is Base UI's own hover/focus + delay behaviour, not
+    // this component's, so it isn't re-tested here.
+    expect(
+      screen.getByRole("button", {
+        name: "What to pick when passengers span more than one tower",
+      }),
+    ).toBeTruthy();
   });
 });

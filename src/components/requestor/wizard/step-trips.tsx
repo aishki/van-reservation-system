@@ -156,6 +156,8 @@ export function StepTrips({
               )}
 
               <PassengerList
+                tower={trip.tower}
+                onTower={(tower) => onTrip(index, { tower })}
                 passengers={trip.passengers}
                 errors={tripErrors}
                 tripLabel={label}

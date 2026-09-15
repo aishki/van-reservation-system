@@ -1,8 +1,10 @@
 "use client";
 
+import { Info } from "lucide-react";
 import { useId } from "react";
 import { Hint } from "@/components/common/hint";
 import { WizardComboInput } from "@/components/requestor/wizard/wizard-combo-input";
+import { WizardSelect } from "@/components/requestor/wizard/wizard-select";
 import {
   FIELD_ERROR,
   FIELD_LABEL_SM,
@@ -16,8 +18,11 @@ import {
   type PassengerDraft,
   type TripErrors,
 } from "@/modules/reservations/draft";
+import { TOWERS } from "@/modules/reservations/reference";
 
 interface PassengerListProps {
+  tower: string;
+  onTower: (tower: string) => void;
   passengers: PassengerDraft[];
   errors: TripErrors;
   /** Label prefix for the remove control, e.g. "Trip 1". */
@@ -28,7 +33,13 @@ interface PassengerListProps {
 }
 
 /**
- * The passenger repeater: a stepper for the count, then one row per passenger.
+ * Tower (which business unit the trip's passengers belong to) plus the
+ * passenger repeater: a stepper for the count, then one row per passenger.
+ *
+ * Tower lives here, not in `step-trips.tsx` alongside Purpose, purely for
+ * layout — the design wants it directly above "Number of Passengers" — even
+ * though it is a `TripDraft` field like Purpose, not a per-passenger one;
+ * `tower`/`onTower` are threaded straight through from the trip.
  *
  * The count control and the list are two views of one array — pressing "+" and
  * pressing "Add another passenger" do the same thing. The design ships both, so
@@ -50,6 +61,8 @@ interface PassengerListProps {
  * clients with no corporate account to search for.
  */
 export function PassengerList({
+  tower,
+  onTower,
   passengers,
   errors,
   tripLabel,
@@ -65,6 +78,27 @@ export function PassengerList({
       <h4 className="mt-[30px] mb-3.5 text-[1.0625rem] leading-6 font-semibold text-gray-1">
         Passengers
       </h4>
+
+      <WizardSelect
+        label="Tower"
+        labelHint={
+          <Hint content="If passengers belong to more than one tower, selecting which one to record is at your discretion — choose whichever applies best.">
+            <button
+              type="button"
+              aria-label="What to pick when passengers span more than one tower"
+              className="flex cursor-pointer items-center text-brand"
+            >
+              <Info aria-hidden="true" className="size-4" />
+            </button>
+          </Hint>
+        }
+        placeholder="Select Tower"
+        value={tower}
+        options={TOWERS}
+        invalid={errors.tower !== undefined}
+        error={errors.tower}
+        onChange={onTower}
+      />
 
       <span className="mb-2.5 block text-body text-gray-1">
         Number of Passengers
