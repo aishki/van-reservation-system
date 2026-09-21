@@ -52,17 +52,21 @@ function renderForm(variant: "requestor" | "admin" = "requestor") {
 }
 
 /**
- * Routes the mocked apiFetch by URL: the verify step returns `{ exists }`; the
- * login step resolves `login` or rejects `loginError`.
+ * Routes the mocked apiFetch by URL: the verify step returns `{ exists,
+ * eligible }` (`eligible` follows `exists` unless a test says otherwise, as it
+ * does on the associate page); the login step resolves `login` or rejects
+ * `loginError`.
  */
 function configureApi(opts: {
   exists?: boolean;
+  eligible?: boolean;
   login?: unknown;
   loginError?: unknown;
 }) {
-  const { exists = true, login, loginError } = opts;
+  const { exists = true, eligible = exists, login, loginError } = opts;
   apiFetchMock.mockImplementation((url: string) => {
-    if (url === "/api/auth/verify-domain") return Promise.resolve({ exists });
+    if (url === "/api/auth/verify-domain")
+      return Promise.resolve({ exists, eligible });
     if (url === "/api/auth/login") {
       return loginError ? Promise.reject(loginError) : Promise.resolve(login);
     }
@@ -145,9 +149,32 @@ describe("LoginForm", () => {
     await waitFor(() => expect(passwordInput().disabled).toBe(false));
     expect(apiFetchMock).toHaveBeenCalledWith("/api/auth/verify-domain", {
       method: "POST",
-      body: JSON.stringify({ domainId: "AB12345" }),
+      body: JSON.stringify({ domainId: "AB12345", portal: "requestor" }),
     });
     expect(screen.getByRole("button", { name: "Sign in" })).not.toBeNull();
+  });
+
+  it("never reveals the admin password for an ID that is not on the whitelist", async () => {
+    // Exists in the directory, but the server says it may not sign in here.
+    configureApi({ exists: true, eligible: false });
+    renderForm("admin");
+    continueWithId("AG00002");
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toMatch(
+        /isn't approved for Admin Support/i,
+      ),
+    );
+    expect(passwordInput().disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Continue" })).not.toBeNull();
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/auth/verify-domain", {
+      method: "POST",
+      body: JSON.stringify({ domainId: "AG00002", portal: "admin" }),
+    });
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      "/api/auth/login",
+      expect.anything(),
+    );
   });
 
   it("shows an inline error and does not reveal the password for an unknown Domain ID", async () => {

@@ -34,8 +34,14 @@ const asKey = (value: string | null): string | null => {
 };
 
 /**
- * Domain ID is the stronger key and wins when both could match — an email can
- * be reassigned, a Domain ID cannot.
+ * Domain ID is the stronger key, and a row that HAS one is matched on it alone.
+ *
+ * The email fallback exists only for rows with no Domain ID (the schema allows
+ * either key). Without that limit, a directory account whose email equals a
+ * whitelisted admin's — a test or dummy account, or a reassigned address —
+ * inherited that admin's role even though its own Domain ID was not on the list.
+ * The whitelist is a list of PEOPLE by Domain ID; an email is only a claim the
+ * directory makes about an account, and one this app does not control.
  *
  * Case handling is deliberately asymmetric, mirroring each key's storage:
  * `admin_whitelist_domain_id_idx` is a plain unique index, so Domain IDs are
@@ -60,7 +66,13 @@ export function matchWhitelist(
 
   const email = asKey(identity.email)?.toLowerCase() ?? null;
   if (email === null) return null;
-  return active.find((e) => asKey(e.email)?.toLowerCase() === email) ?? null;
+  return (
+    active.find(
+      (e) =>
+        // A row with its own Domain ID is not reachable by email: see above.
+        asKey(e.domain_id) === null && asKey(e.email)?.toLowerCase() === email,
+    ) ?? null
+  );
 }
 
 export function resolveRole(

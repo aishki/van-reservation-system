@@ -129,6 +129,37 @@ describe("matchWhitelist", () => {
     ).not.toBeNull();
   });
 
+  // The AG00002 case: a dummy directory account carried a real admin's email.
+  it("does not let a different Domain ID match a row by its email", () => {
+    const adrian = entry({
+      domain_id: "AG78121",
+      email: "adrian.esguerra@carelon.com",
+      site: "all",
+    });
+    const dummy = {
+      domainId: "AG00002",
+      email: "adrian.esguerra@carelon.com",
+    };
+    expect(matchWhitelist(dummy, [adrian])).toBeNull();
+    expect(resolveRole(dummy, [adrian])).toBe("associate");
+    expect(resolveSuperAdmin(dummy, [{ ...adrian, super_admin: true }])).toBe(
+      false,
+    );
+  });
+
+  it("still matches that same row by its own Domain ID", () => {
+    const adrian = entry({
+      domain_id: "AG78121",
+      email: "adrian.esguerra@carelon.com",
+    });
+    expect(
+      matchWhitelist(
+        { domainId: "AG78121", email: "someone.else@carelon.com" },
+        [adrian],
+      ),
+    ).not.toBeNull();
+  });
+
   it("does not let an inactive domain_id row shadow an active email row", () => {
     const inactiveDomain = entry({
       domain_id: identity.domainId,

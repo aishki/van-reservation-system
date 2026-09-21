@@ -3,10 +3,12 @@ import { cookies } from "next/headers";
 import type { ErrorCode } from "@/lib/api-error";
 import { env } from "@/lib/env";
 import { err, ok, type Result } from "@/lib/result";
+import { canonicalDomainId } from "@/modules/auth/domain-id";
 import type { AuthProvider } from "@/modules/auth/provider";
 import { listActiveWhitelist, upsertUser } from "@/modules/auth/repo";
 import {
   type AppRole,
+  matchWhitelist,
   resolveRole,
   resolveSuperAdmin,
 } from "@/modules/auth/roles";
@@ -100,6 +102,30 @@ export async function authenticate(
     role,
     superAdmin: resolveSuperAdmin(identity, whitelist),
   });
+}
+
+/**
+ * Whether a Domain ID is on the active admin whitelist — the pre-password gate
+ * on the admin sign-in page.
+ *
+ * Keyed on the Domain ID alone, because that is all anyone has typed at that
+ * point: the directory email is only known after the password is verified. So a
+ * whitelist row that has NO Domain ID (email-only) cannot pass this gate, and
+ * the person it names cannot reach the admin password step until the row is
+ * given one. `authenticate` re-checks the full identity after the password
+ * regardless — this only decides whether to ask for it.
+ */
+export async function isAdminDomainId(
+  db: Kysely<DB>,
+  domainId: string,
+): Promise<boolean> {
+  const whitelist = await listActiveWhitelist(db);
+  return (
+    matchWhitelist(
+      { domainId: canonicalDomainId(domainId), email: "" },
+      whitelist,
+    ) !== null
+  );
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {

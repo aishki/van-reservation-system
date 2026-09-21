@@ -20,6 +20,8 @@ interface LoginResponse {
 
 interface VerifyResponse {
   exists: boolean;
+  /** May be asked for a password on this page. Differs from `exists` on the admin page. */
+  eligible: boolean;
 }
 
 // Load-in: the blocks fade up in sequence as the van drives in beside them.
@@ -43,6 +45,9 @@ const loadItemInstant = {
   hidden: loadItem.hidden,
   show: { opacity: 1, y: 0, transition: { duration: 0 } },
 };
+
+const ADMIN_NOT_APPROVED =
+  "This Domain ID isn't approved for Admin Support. Sign in on the associate page instead.";
 
 export function LoginForm({ variant }: { variant: LoginVariant }) {
   const router = useRouter();
@@ -69,17 +74,23 @@ export function LoginForm({ variant }: { variant: LoginVariant }) {
     mutationFn: () =>
       apiFetch<VerifyResponse>("/api/auth/verify-domain", {
         method: "POST",
-        body: JSON.stringify({ domainId }),
+        // `portal` so the server can also check the admin whitelist at the admin
+        // page. Advisory only: the login request re-checks it after the password.
+        body: JSON.stringify({ domainId, portal: variant }),
       }),
     onSuccess: (data) => {
-      if (data.exists) {
+      if (data.eligible) {
         setIdError(null);
         setRevealed(true);
         return;
       }
-      // A non-existent ID comes back as a normal 200 — surface it inline at the
-      // field, not as a transient toast.
-      setIdError("We couldn't find that Domain ID. Check it and try again.");
+      // A refusal comes back as a normal 200 — surface it inline at the field,
+      // not as a transient toast, and never reveal the password step.
+      setIdError(
+        data.exists
+          ? ADMIN_NOT_APPROVED
+          : "We couldn't find that Domain ID. Check it and try again.",
+      );
     },
     // Rate limit / outage (RATE_LIMITED, SERVICE_UNAVAILABLE) carry their own
     // message from the server; a missing ID never reaches here.
