@@ -21,25 +21,28 @@ const DRIVE_EASE = [0.2, 0.9, 0.25, 1] as const;
  * the Login design so the front pokes across the wedge; `max-w-none` defeats
  * the global `img` clamp that would otherwise kill the bleed.
  *
- * Under prefers-reduced-motion the drive is dropped entirely — the van simply
+ * Under prefers-reduced-motion the drive takes zero time — the van simply
  * appears in place — consistent with the hero's reduced-motion path.
  */
 export function LoginVan() {
   const reduce = useReducedMotion();
 
-  const drive = reduce
-    ? {}
-    : {
-        initial: { x: "72%", opacity: 0 },
-        animate: { x: 0, opacity: 1 },
-        transition: { duration: 1.1, ease: DRIVE_EASE, delay: 0.15 },
-      };
-
   return (
     <motion.div
       aria-hidden="true"
       className="pointer-events-none absolute -right-[8%] -bottom-[11%] z-10 w-[76%] select-none"
-      {...drive}
+      // `initial` is the same for everyone, reduced motion or not. The server
+      // cannot know the setting, so it always renders this state into the HTML;
+      // if the client then dropped `initial`, hydration would leave the van stuck
+      // at opacity 0 (React does not patch a mismatched `style`). Reduced motion
+      // only makes the trip to the resting placement instant.
+      initial={{ x: "72%", opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      transition={
+        reduce
+          ? { duration: 0 }
+          : { duration: 1.1, ease: DRIVE_EASE, delay: 0.15 }
+      }
     >
       <Image
         src="/assets/van-side-full.png"

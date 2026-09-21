@@ -33,17 +33,31 @@ const loadItem = {
   hidden: { opacity: 0, y: 16 },
   show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE_OUT } },
 };
+// Reduced motion: same `hidden` state, zero-time trip to `show`. See the note
+// in `LoginForm` for why `hidden` must not differ.
+const loadContainerInstant = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0, delayChildren: 0 } },
+};
+const loadItemInstant = {
+  hidden: loadItem.hidden,
+  show: { opacity: 1, y: 0, transition: { duration: 0 } },
+};
 
 export function LoginForm({ variant }: { variant: LoginVariant }) {
   const router = useRouter();
   const accent = LOGIN_ACCENT[variant];
   const reduce = useReducedMotion();
-  // Under prefers-reduced-motion the load-in is dropped: the blocks render in
+  // Under prefers-reduced-motion the load-in takes zero time: the blocks land in
   // place with no fade or slide, matching the van's reduced-motion path.
-  const loadIn = reduce
-    ? {}
-    : { initial: "hidden" as const, animate: "show" as const };
-  const itemVariants = reduce ? undefined : loadItem;
+  //
+  // `initial`/`animate` are NOT conditional on `reduce`. The server cannot read
+  // the OS setting, so it always renders the `hidden` state (opacity 0) into the
+  // HTML; a client that omitted `initial` would hydrate onto that markup without
+  // ever animating it in, and React does not patch a mismatched `style` — the
+  // form and van stayed invisible on any machine with animations turned off.
+  const loadIn = { initial: "hidden" as const, animate: "show" as const };
+  const itemVariants = reduce ? loadItemInstant : loadItem;
   const [domainId, setDomainId] = useState("");
   const [password, setPassword] = useState("");
   // The password step is revealed only after the Domain ID is confirmed to
@@ -124,7 +138,7 @@ export function LoginForm({ variant }: { variant: LoginVariant }) {
   return (
     <motion.div
       className="flex w-full max-w-[460px] flex-col"
-      variants={reduce ? undefined : loadContainer}
+      variants={reduce ? loadContainerInstant : loadContainer}
       {...loadIn}
     >
       {/* Partner lockups, pinned to the top of the form as in the design. */}
