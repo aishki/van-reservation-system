@@ -13,7 +13,14 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="flex min-h-full flex-col bg-background text-foreground">
+      {/* Browser extensions inject classes and attributes onto <body> before
+          React hydrates (e.g. `vc-init`), which is a mismatch the app did not
+          cause. Suppression is one level deep: it covers this element's own
+          attributes and does not hide mismatches in anything rendered inside. */}
+      <body
+        suppressHydrationWarning
+        className="flex min-h-full flex-col bg-background text-foreground"
+      >
         <Providers>{children}</Providers>
       </body>
     </html>
