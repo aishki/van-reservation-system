@@ -8,6 +8,7 @@ import {
 } from "@/lib/tz";
 import type { DB } from "@/modules/db/types";
 import type {
+  RequestCosting,
   RequestDriver,
   RequestInformationInput,
   RequestTrip,
@@ -238,6 +239,8 @@ export async function loadRequestInformation(
       "r.rental_driver_mobile",
       "r.rental_plate",
       "r.rental_car_type",
+      "r.vendor",
+      "r.cost_php",
     ])
     .where("r.id", "=", reservationId)
     .executeTakeFirstOrThrow();
@@ -256,6 +259,7 @@ export async function loadRequestInformation(
   }));
 
   const driver = assignedVanOf(row);
+  const costing = costingOf(row);
   const mode = row.ride_mode as RideMode;
   const start = instantInManila(row.start_at);
   const end = row.end_at === null ? null : instantInManila(row.end_at);
@@ -277,6 +281,7 @@ export async function loadRequestInformation(
           reportingPoint: row.pickup_location,
           passengers,
           driver,
+          costing,
         }
       : {
           mode: "pickup",
@@ -291,6 +296,7 @@ export async function loadRequestInformation(
           dropoffPoint: row.dropoff_location ?? EM_DASH,
           passengers,
           driver,
+          costing,
         };
 
   return {
@@ -302,6 +308,26 @@ export async function loadRequestInformation(
       mobile: row.requestor_mobile,
     },
     trips: [trip],
+  };
+}
+
+/**
+ * The "Costing" block: vendor and additional cost, as Admin Support recorded
+ * them. `undefined` when neither exists; one without the other dashes the
+ * missing half, for the same reason `assignedVanOf` does.
+ */
+function costingOf(row: {
+  vendor: string | null;
+  cost_php: number | null;
+}): RequestCosting | undefined {
+  const vendor = row.vendor?.trim() || null;
+  if (vendor === null && row.cost_php === null) return undefined;
+  return {
+    vendor: vendor ?? EM_DASH,
+    cost:
+      row.cost_php === null
+        ? EM_DASH
+        : `PHP ${row.cost_php.toLocaleString("en-US")}`,
   };
 }
 

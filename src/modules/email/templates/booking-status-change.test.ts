@@ -139,3 +139,33 @@ describe("renderBookingStatusChange", () => {
     });
   });
 });
+
+describe("renderBookingStatusChange costing", () => {
+  const driver = {
+    name: "Rico Santos",
+    mobile: "0917 555 0100",
+    plate: "ABC 1234",
+  };
+  const costing = { vendor: "Happy Win", cost: "PHP 6,400" };
+  const withTrip = (extra: Partial<RequestTrip>): BookingStatusChangeInput => ({
+    ...approved,
+    trips: [{ ...trip, ...extra } as RequestTrip],
+  });
+
+  it("shows the vendor and cost below the assigned van", async () => {
+    const { text } = await renderBookingStatusChange(
+      withTrip({ driver, costing }),
+    );
+    expect(text).toContain("Vendor: Happy Win");
+    expect(text).toContain("Additional cost: PHP 6,400");
+    expect(text.indexOf("Rico Santos")).toBeLessThan(
+      text.indexOf("Vendor: Happy Win"),
+    );
+  });
+
+  it("says nothing about costing when none is recorded", async () => {
+    const { text } = await renderBookingStatusChange(withTrip({ driver }));
+    expect(text).not.toContain("Vendor");
+    expect(text).not.toContain("Additional cost");
+  });
+});

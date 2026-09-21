@@ -627,10 +627,67 @@ describe("TripDrawer editing", () => {
     ).toBe(false);
   });
 
-  it("sends a vendor and cost entered on a pickup", async () => {
+  it("sends a vendor picked from the list and a cost entered on a pickup", async () => {
     const { onClose } = setup();
     fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.change(screen.getByRole("textbox", { name: "Vendor" }), {
+    fireEvent.change(screen.getByRole("combobox", { name: "Vendor" }), {
+      target: { value: "Happy Win" },
+    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Additional Cost (PHP)" }),
+      {
+        target: { value: "3500" },
+      },
+    );
+    save();
+
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(patchBody()).toMatchObject({
+      trip: expect.objectContaining({
+        vendor: "Happy Win",
+        costPhp: 3500,
+      }),
+    });
+  });
+
+  it("offers the four vendors and Others", () => {
+    setup();
+    fireEvent.click(screen.getByRole("checkbox"));
+    const select = screen.getByRole("combobox", { name: "Vendor" });
+    const labels = Array.from(select.querySelectorAll("option")).map(
+      (option) => option.textContent,
+    );
+    expect(labels).toEqual([
+      "Select Vendor",
+      "Benchmark",
+      "Happy Win",
+      "Mariale",
+      "Southwest",
+      "Others",
+    ]);
+  });
+
+  it("refuses Others with no vendor typed", () => {
+    setup();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.change(screen.getByRole("combobox", { name: "Vendor" }), {
+      target: { value: "__others__" },
+    });
+    save();
+    expect(screen.getByText("Specify the vendor.")).toBeDefined();
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/api/reservations/"),
+      expect.objectContaining({ method: "PATCH" }),
+    );
+  });
+
+  it("sends the typed vendor when Others is chosen", async () => {
+    const { onClose } = setup();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.change(screen.getByRole("combobox", { name: "Vendor" }), {
+      target: { value: "__others__" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Specify Vendor" }), {
       target: { value: "Rent-A-Van Corp" },
     });
     fireEvent.change(
@@ -1029,8 +1086,8 @@ describe("TripDrawer reassign mode", () => {
   // this mode never renders.
   it("leaves vendor and cost editable with no unlock", () => {
     reassigning();
-    expect(screen.getByRole("textbox", { name: "Vendor" })).toHaveProperty(
-      "readOnly",
+    expect(screen.getByRole("combobox", { name: "Vendor" })).toHaveProperty(
+      "disabled",
       false,
     );
     expect(

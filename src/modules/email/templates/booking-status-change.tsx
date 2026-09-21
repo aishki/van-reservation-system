@@ -174,6 +174,7 @@ export function BookingStatusChangeEmail(input: BookingStatusChangeInput) {
         rideMode={input.rideMode}
         requestor={input.requestor}
         trips={input.trips}
+        showCosting
       />
 
       <Hr style={styles.hr} />

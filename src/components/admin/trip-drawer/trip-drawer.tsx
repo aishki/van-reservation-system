@@ -43,7 +43,11 @@ import {
   ADMIN_RESERVATIONS_KEY,
   reservationDetailKey,
 } from "@/modules/reservations/query-keys";
-import { isTripPurpose, TRIP_PURPOSES } from "@/modules/reservations/reference";
+import {
+  isTripPurpose,
+  TRIP_PURPOSES,
+  VENDORS,
+} from "@/modules/reservations/reference";
 import type {
   AssignedDriver,
   AssignedVan,
@@ -101,6 +105,12 @@ const PURPOSE_OPTIONS = TRIP_PURPOSES.map((purpose) => ({
   label: purpose,
 }));
 
+/** The vendor select's options: the fixed list, then manual entry. */
+const VENDOR_OPTIONS = [
+  ...VENDORS.map((vendor) => ({ value: vendor, label: vendor })),
+  { value: OTHERS, label: "Others" },
+];
+
 /**
  * Editable trip fields, as one flat record so a reset is one assignment.
  *
@@ -122,7 +132,10 @@ interface DetailDraft {
   startTime: string;
   endDate: string;
   endTime: string;
+  /** One of `VENDORS`, `OTHERS`, or `""` for none. */
   vendor: string;
+  /** What the admin typed when `vendor` is `OTHERS`. */
+  vendorOther: string;
   cost: string;
   /** A roster id, `OTHERS`, or `""` for unassigned — the placeholder value. */
   driverId: string;
@@ -147,7 +160,7 @@ function draftFrom(detail: ReservationDetail): DetailDraft {
     startTime: detail.startTime,
     endDate: detail.endDate ?? "",
     endTime: detail.endTime ?? "",
-    vendor: detail.vendor ?? "",
+    ...vendorDraftOf(detail.vendor),
     cost: detail.costPhp === null ? "" : String(detail.costPhp),
     driverId: selectionOf(driver?.source, rosterDriverId(detail)),
     rentalDriverName: driver?.source === "rental" ? driver.name : "",
@@ -157,6 +170,29 @@ function draftFrom(detail: ReservationDetail): DetailDraft {
     rentalPlate: van?.source === "rental" ? van.plate : "",
     rentalCarType: van?.source === "rental" ? van.carType : "",
   };
+}
+
+/**
+ * A stored vendor as the select and its "Others" text. `reservations.vendor` is
+ * free text, so a value outside `VENDORS` — typed as Others, or recorded before
+ * the dropdown existed — comes back as Others with that text, not blanked.
+ */
+function vendorDraftOf(vendor: string | null): {
+  vendor: string;
+  vendorOther: string;
+} {
+  if (vendor === null || vendor.trim() === "") {
+    return { vendor: "", vendorOther: "" };
+  }
+  return (VENDORS as readonly string[]).includes(vendor)
+    ? { vendor, vendorOther: "" }
+    : { vendor: OTHERS, vendorOther: vendor };
+}
+
+/** The vendor as stored: the pick, or the typed text for Others. */
+function vendorOf(draft: DetailDraft): string | null {
+  const value = draft.vendor === OTHERS ? draft.vendorOther : draft.vendor;
+  return value.trim() || null;
 }
 
 /** A stored assignment as its select's value — the id, `OTHERS`, or `""`. */
@@ -169,6 +205,7 @@ function selectionOf(
 }
 
 const COST_MESSAGE = "Enter a whole number of pesos, or leave it blank.";
+const VENDOR_MESSAGE = "Specify the vendor.";
 
 /**
  * A rental field the write path refuses blank (`wire.ts` puts `min(1)` on each
@@ -345,6 +382,10 @@ export function TripDrawer({
     costEditable && parseCost(draft.cost) === undefined
       ? COST_MESSAGE
       : undefined;
+  const vendorError =
+    costEditable && draft.vendor === OTHERS && draft.vendorOther.trim() === ""
+      ? VENDOR_MESSAGE
+      : undefined;
   const detailsError =
     tripEditable && draft.details.trim() === "" ? DETAILS_MESSAGE : undefined;
   const rentalErrors: RentalErrors = {
@@ -399,6 +440,7 @@ export function TripDrawer({
     if (
       !isDecisionValid(errors) ||
       costError !== undefined ||
+      vendorError !== undefined ||
       detailsError !== undefined ||
       rentalIncomplete
     ) {
@@ -423,7 +465,7 @@ export function TripDrawer({
     // sees why instead of a success toast. A cost-only edit through this
     // mode is legitimate (see `costEditable` above) and must not trip this.
     const costMoved =
-      (draft.vendor.trim() || null) !== detail.vendor ||
+      vendorOf(draft) !== detail.vendor ||
       parseCost(draft.cost) !== detail.costPhp;
     if (
       mode === "reassign" &&
@@ -812,16 +854,38 @@ export function TripDrawer({
             open={isOpen(COSTING)}
             onToggle={(open) => setOpen(COSTING, open)}
           >
-            <DrawerField
-              label="Vendor"
-              value={draft.vendor}
-              onChange={costEditable ? (v) => set("vendor", v) : undefined}
-              lockedHint={
-                mode === "reassign"
-                  ? undefined
-                  : "Tick 'Trip details changed' to edit."
-              }
-            />
+            {costEditable ? (
+              <>
+                <DrawerSelect
+                  label="Vendor"
+                  value={draft.vendor}
+                  options={VENDOR_OPTIONS}
+                  placeholder="Select Vendor"
+                  clearable
+                  onChange={(v) => {
+                    set("vendor", v);
+                    setShowErrors(false);
+                  }}
+                />
+                {draft.vendor === OTHERS && (
+                  <DrawerField
+                    label="Specify Vendor"
+                    value={draft.vendorOther}
+                    error={showErrors ? vendorError : undefined}
+                    onChange={(v) => {
+                      set("vendorOther", v);
+                      setShowErrors(false);
+                    }}
+                  />
+                )}
+              </>
+            ) : (
+              <DrawerField
+                label="Vendor"
+                value={vendorOf(draft) ?? ""}
+                lockedHint="Tick 'Trip details changed' to edit."
+              />
+            )}
             <DrawerField
               label="Additional Cost (PHP)"
               value={draft.cost}
@@ -1158,7 +1222,7 @@ function tripEditOf(draft: DetailDraft, standby: boolean) {
     startTime: draft.startTime,
     endDate: standby ? draft.endDate : null,
     endTime: standby ? draft.endTime : null,
-    vendor: draft.vendor.trim() || null,
+    vendor: vendorOf(draft),
     // `costError` has already refused anything else by the time this runs.
     costPhp: parseCost(draft.cost) ?? null,
   };
@@ -1167,7 +1231,7 @@ function tripEditOf(draft: DetailDraft, standby: boolean) {
 /** The draft's vendor/cost alone, in the shape a reassign's `costing` takes. */
 function costingEditOf(draft: DetailDraft) {
   return {
-    vendor: draft.vendor.trim() || null,
+    vendor: vendorOf(draft),
     costPhp: parseCost(draft.cost) ?? null,
   };
 }

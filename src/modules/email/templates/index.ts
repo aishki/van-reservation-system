@@ -64,6 +64,12 @@ const driver = z
   .object({ name: text, mobile: text, plate: text, carType: text.optional() })
   .optional();
 
+/**
+ * Optional and absent when no vendor or cost is recorded — and for any outbox
+ * row queued before costing reached the emails, which must still render.
+ */
+const costing = z.object({ vendor: text, cost: text }).optional();
+
 const trip = z.discriminatedUnion("mode", [
   z.object({
     mode: z.literal("pickup"),
@@ -75,6 +81,7 @@ const trip = z.discriminatedUnion("mode", [
     dropoffPoint: text,
     passengers: z.array(passenger),
     driver,
+    costing,
   }),
   z.object({
     mode: z.literal("standby"),
@@ -87,6 +94,7 @@ const trip = z.discriminatedUnion("mode", [
     reportingPoint: text,
     passengers: z.array(passenger),
     driver,
+    costing,
   }),
 ]);
 

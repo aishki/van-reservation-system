@@ -211,6 +211,11 @@ interface DrawerSelectProps {
   error?: string;
   /** While the options are still loading there is nothing to choose from. */
   disabled?: boolean;
+  /**
+   * Keeps the placeholder choosable after a value is picked, for a field where
+   * blank is a real answer ("no vendor") rather than a no-op.
+   */
+  clearable?: boolean;
   onChange: (value: string) => void;
 }
 
@@ -230,6 +235,7 @@ export function DrawerSelect({
   placeholder,
   error,
   disabled = false,
+  clearable = false,
   onChange,
 }: DrawerSelectProps) {
   const id = useId();
@@ -261,7 +267,7 @@ export function DrawerSelect({
             `driverInputOf`/`vanInputOf` map "" to null, meaning "leave
             unchanged", not "unassign". There is no way to clear an
             assignment; this option must not look like one. */}
-        <option value="" disabled={value !== ""}>
+        <option value="" disabled={value !== "" && !clearable}>
           {placeholder}
         </option>
         {options.map((option) => (

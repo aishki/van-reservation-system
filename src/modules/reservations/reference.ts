@@ -54,6 +54,19 @@ export function isTripPurpose(value: unknown): value is TripPurpose {
 }
 
 /**
+ * Van-hire vendors Admin Support can pick from when recording costing. Not a
+ * closed set: `reservations.vendor` is free text, and "Others" in the drawer
+ * stores whatever the admin typed, so a stored vendor outside this list is
+ * legitimate and is shown as an "Others" entry when reopened.
+ */
+export const VENDORS = [
+  "Benchmark",
+  "Happy Win",
+  "Mariale",
+  "Southwest",
+] as const;
+
+/**
  * Which business unit a trip's passengers belong to — closed vocabulary like
  * `TRIP_PURPOSES`, for the same reason: display and reporting only, nothing
  * in the app branches on it, so a database CHECK constraint would mean a

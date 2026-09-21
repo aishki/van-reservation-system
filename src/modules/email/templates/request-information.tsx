@@ -44,6 +44,16 @@ export interface RequestDriver {
   carType?: string;
 }
 
+/**
+ * Admin Support's vendor and additional cost for a trip. Both are already
+ * formatted, and either may be `EM_DASH` — a trip can carry a vendor with no
+ * cost yet, or the reverse.
+ */
+export interface RequestCosting {
+  vendor: string;
+  cost: string;
+}
+
 interface TripCommon {
   /** This trip's own reservation reference — one per trip, not per submission. */
   referenceId: string;
@@ -52,6 +62,11 @@ interface TripCommon {
   passengers: RequestPassenger[];
   /** Absent until Admin Support assigns one. Only shown when present. */
   driver?: RequestDriver;
+  /**
+   * Absent when neither vendor nor cost is recorded. Only rendered by a
+   * template that opts in with `showCosting`.
+   */
+  costing?: RequestCosting;
 }
 
 /**
@@ -220,7 +235,26 @@ function Driver({ driver }: { driver: RequestDriver }) {
   );
 }
 
-function TripCard({ trip, index }: { trip: RequestTrip; index: number }) {
+/** Vendor and additional cost, under the assigned van. */
+function Costing({ costing }: { costing: RequestCosting }) {
+  return (
+    <Section style={card.driverBlock}>
+      <Text style={card.driverLabel}>Costing</Text>
+      <Text style={card.driverRow}>Vendor: {costing.vendor}</Text>
+      <Text style={card.driverRow}>Additional cost: {costing.cost}</Text>
+    </Section>
+  );
+}
+
+function TripCard({
+  trip,
+  index,
+  showCosting,
+}: {
+  trip: RequestTrip;
+  index: number;
+  showCosting: boolean;
+}) {
   const standby = trip.mode === "standby";
   return (
     <Card
@@ -247,6 +281,9 @@ function TripCard({ trip, index }: { trip: RequestTrip; index: number }) {
         </>
       )}
       {trip.driver !== undefined && <Driver driver={trip.driver} />}
+      {showCosting && trip.costing !== undefined && (
+        <Costing costing={trip.costing} />
+      )}
     </Card>
   );
 }
@@ -256,7 +293,8 @@ export function RequestInformation({
   rideMode,
   requestor,
   trips,
-}: RequestInformationInput) {
+  showCosting = false,
+}: RequestInformationInput & { showCosting?: boolean }) {
   return (
     <Section>
       <Card title="Ride &amp; Site">
@@ -271,7 +309,12 @@ export function RequestInformation({
       </Card>
 
       {trips.map((trip, index) => (
-        <TripCard key={trip.referenceId} trip={trip} index={index} />
+        <TripCard
+          key={trip.referenceId}
+          trip={trip}
+          index={index}
+          showCosting={showCosting}
+        />
       ))}
     </Section>
   );
