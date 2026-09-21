@@ -3,6 +3,7 @@ import {
   type BookingDraft,
   blankDraft,
   blankTrip,
+  draftFromDetail,
   findDuplicateTripPairs,
   isDraftStepValid,
   isValidEmail,
@@ -13,7 +14,7 @@ import {
   validateStep,
 } from "@/modules/reservations/draft";
 import { TRIP_PURPOSES } from "@/modules/reservations/reference";
-import type { RideMode } from "@/modules/reservations/types";
+import type { ReservationDetail, RideMode } from "@/modules/reservations/types";
 
 /** A draft that passes every rule, so each test can break exactly one thing. */
 function validDraft(mode: RideMode = "pickup"): BookingDraft {
@@ -537,5 +538,59 @@ describe("findDuplicateTripPairs", () => {
       ],
     };
     expect(findDuplicateTripPairs([reordered, same])).toEqual([]);
+  });
+});
+
+describe("draftFromDetail", () => {
+  // Only the fields the mapper reads; the rest of the detail is admin-side
+  // bookkeeping that has no place in a draft.
+  const detail = (fields: Partial<ReservationDetail>): ReservationDetail =>
+    ({
+      mode: "pickup",
+      site: "Manila",
+      requestorMobile: "09171234567",
+      purpose: "IT-Related",
+      details: "Laptop replacement drop-off.",
+      tower: "Ops Support",
+      towerHead: null,
+      passengers: [{ domainId: null, name: "Dela Cruz, Juan", email: null }],
+      pickupPoint: "GLS Tower lobby",
+      dropoffPoint: "AGT Building",
+      startDate: "2026-08-10",
+      startTime: "09:00",
+      endDate: null,
+      endTime: null,
+      ...fields,
+    }) as ReservationDetail;
+
+  it("fills a pickup's own fields and leaves the standby ones blank", () => {
+    expect(draftFromDetail(detail({}))).toEqual(validDraft("pickup"));
+  });
+
+  it("fills a standby's window and Tower Head, and no dropoff", () => {
+    const draft = draftFromDetail(
+      detail({
+        mode: "standby",
+        dropoffPoint: null,
+        towerHead: "Cruz, Ivan",
+        endDate: "2026-08-11",
+        endTime: "17:00",
+        startTime: "09:00",
+      }),
+    );
+    expect(draft).toEqual(validDraft("standby"));
+  });
+
+  it("reads a legacy null tower and a null passenger email as blank", () => {
+    const draft = draftFromDetail(detail({ tower: null }));
+    expect(draft.trips[0].tower).toBe("");
+    expect(draft.trips[0].passengers).toEqual([
+      { name: "Dela Cruz, Juan", email: "" },
+    ]);
+  });
+
+  it("is a draft the wizard can validate as it stands", () => {
+    const errors = validateStep(draftFromDetail(detail({})), 4);
+    expect(isDraftStepValid(errors)).toBe(true);
   });
 });

@@ -3,6 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 import { BookingDone } from "@/components/requestor/wizard/booking-done";
 import { DuplicateTripDialog } from "@/components/requestor/wizard/duplicate-trip-dialog";
 import { StepDetails } from "@/components/requestor/wizard/step-details";
@@ -36,6 +37,12 @@ interface BookingWizardProps {
   /** From the session. Read-only in the form and never trusted from the client. */
   name: string;
   email: string;
+  /**
+   * Present when re-opening a saved, still-pending request rather than making a
+   * new one. `draft` seeds the form; `version` is the row version it was read at,
+   * sent back so the save refuses to overwrite a decision made in the meantime.
+   */
+  edit?: { reference: string; version: number; draft: BookingDraft };
 }
 
 /** One reference per trip in the draft — the wizard can submit several at once. */
@@ -69,10 +76,13 @@ interface Submission {
  * step 3 would land on an empty form with a filled-in progress rail. Back from
  * step 2 leaves the wizard entirely, which is why it says "Back to ride".
  */
-export function BookingWizard({ mode, name, email }: BookingWizardProps) {
+export function BookingWizard({ mode, name, email, edit }: BookingWizardProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<BookingDraft>(() => blankDraft(mode));
+  const editing = edit !== undefined;
+  const [draft, setDraft] = useState<BookingDraft>(
+    () => edit?.draft ?? blankDraft(mode),
+  );
   const [step, setStep] = useState<WizardStep>(2);
   const [showErrors, setShowErrors] = useState(false);
   // Non-empty only while the duplicate-trip dialog is open, blocking step 3
@@ -170,7 +180,7 @@ export function BookingWizard({ mode, name, email }: BookingWizardProps) {
   const onBack = () => {
     if (step === 3) return goToStep(2);
     if (step === 4) return goToStep(3);
-    router.push("/?view=choose");
+    router.push(editing ? "/manage" : "/?view=choose");
   };
 
   /**
@@ -188,6 +198,10 @@ export function BookingWizard({ mode, name, email }: BookingWizardProps) {
     setSubmitting(true);
     setSubmitError(undefined);
     try {
+      if (edit !== undefined) {
+        await saveEdit(edit);
+        return;
+      }
       const created = await apiFetch<SubmitResponse>("/api/reservations", {
         method: "POST",
         body: JSON.stringify(draft),
@@ -213,6 +227,29 @@ export function BookingWizard({ mode, name, email }: BookingWizardProps) {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  /**
+   * `PUT /api/reservations/:reference` — the edit's counterpart to the POST
+   * above. Not a POST of the same draft: that would file a second request and
+   * leave the original pending.
+   *
+   * Leaves for the list on success rather than showing the confirmation screen,
+   * which announces a NEW reference. `refresh()` because the list is a server
+   * component rendered once; without it the router can serve the stale copy.
+   */
+  const saveEdit = async (target: NonNullable<typeof edit>) => {
+    await apiFetch(
+      `/api/reservations/${encodeURIComponent(target.reference)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ version: target.version, draft }),
+      },
+    );
+    void queryClient.invalidateQueries({ queryKey: FIELD_HISTORY_KEY });
+    toast.success(`${target.reference} updated.`);
+    router.push("/manage");
+    router.refresh();
   };
 
   if (submission !== null) {
@@ -260,6 +297,7 @@ export function BookingWizard({ mode, name, email }: BookingWizardProps) {
 
         {step === 3 && (
           <StepTrips
+            editing={editing}
             draft={draft}
             errors={errors}
             onTrip={patchTrip}
@@ -312,7 +350,11 @@ export function BookingWizard({ mode, name, email }: BookingWizardProps) {
 
         <div className="mt-9 flex items-center gap-3.5 border-t border-gray-6 pt-[26px]">
           <button type="button" onClick={onBack} className={WIZARD_BACK}>
-            {step === 2 ? "Back to ride" : "Back"}
+            {step === 2
+              ? editing
+                ? "Back to bookings"
+                : "Back to ride"
+              : "Back"}
           </button>
           <button
             type="button"
@@ -328,8 +370,12 @@ export function BookingWizard({ mode, name, email }: BookingWizardProps) {
             )}
             {step === 4
               ? submitting
-                ? "Submitting…"
-                : "Submit request"
+                ? editing
+                  ? "Saving…"
+                  : "Submitting…"
+                : editing
+                  ? "Save changes"
+                  : "Submit request"
               : "Continue"}
           </button>
         </div>

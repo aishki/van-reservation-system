@@ -129,13 +129,10 @@ export function BookingsTable({
                         label: "Edit request",
                         enabled: editable,
                         disabledReason: "Only pending bookings can be changed.",
-                        // Editing re-enters the wizard in the booking's own mode.
-                        // A full edit flow needs the saved draft loaded back in,
-                        // which needs the API — until then this starts a fresh
-                        // request of the right kind rather than pretending to
-                        // load one.
+                        // The book page loads the saved request server-side and
+                        // opens the wizard filled in, in the booking's own mode.
                         onSelect: () => {
-                          window.location.href = `/book?mode=${row.mode}`;
+                          window.location.href = `/book?edit=${encodeURIComponent(row.id)}`;
                         },
                       },
                       {

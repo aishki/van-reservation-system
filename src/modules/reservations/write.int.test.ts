@@ -1,7 +1,11 @@
 import { sql } from "kysely";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { EM_DASH, formatPlainDateTime } from "@/lib/tz";
-import { type BookingDraft, MESSAGES } from "@/modules/reservations/draft";
+import {
+  type BookingDraft,
+  draftFromDetail,
+  MESSAGES,
+} from "@/modules/reservations/draft";
 import { getReservationDetail } from "@/modules/reservations/repo";
 import { CHANGED_TRIP_DETAILS_REMARK } from "@/modules/reservations/types";
 import {
@@ -10,6 +14,7 @@ import {
   markNoShow,
   revertNoShow,
   submitBooking,
+  updateBooking,
   WRITE_MESSAGES,
   type WriteActor,
 } from "@/modules/reservations/write";
@@ -437,6 +442,149 @@ describe("submitBooking", () => {
 
     const rows = await db.selectFrom("reservations").select("id").execute();
     expect(rows).toHaveLength(0);
+  });
+});
+
+describe("updateBooking", () => {
+  /** The saved request read back as the edit form would load it. */
+  async function loaded(reference: string) {
+    const found = await getReservationDetail(db, reference);
+    if (found === null) throw new Error("reservation missing");
+    return {
+      draft: draftFromDetail(found.detail),
+      version: found.detail.version,
+    };
+  }
+
+  it("round-trips: a saved request reads back as the draft that made it", async () => {
+    const reference = await submitted();
+    const { draft } = await loaded(reference);
+    // Mobile is stored as digits, so the submitted "0917 111 2222" comes back
+    // without its spaces; everything else is what was typed.
+    expect(draft).toEqual({ ...pickupDraft(), mobile: "09171112222" });
+  });
+
+  it("saves the changes, bumps the version and records one modified event", async () => {
+    const reference = await submitted();
+    const { draft, version } = await loaded(reference);
+    draft.trips[0].pickupPoint = "New lobby";
+    draft.trips[0].passengers.push({ name: "Reyes, Ana", email: "" });
+
+    const result = await updateBooking(
+      db,
+      requestor,
+      reference,
+      version,
+      draft,
+    );
+    expect(result).toEqual({ ok: true, value: { reference, version: 2 } });
+
+    const row = await rowOf(reference);
+    expect(row.pickup_location).toBe("New lobby");
+    expect(row.version).toBe(2);
+    expect(row.status).toBe("pending");
+
+    const detail = (await getReservationDetail(db, reference))?.detail;
+    expect(detail?.passengers.map((p) => p.name)).toEqual([
+      "Dela Cruz, Juan",
+      "Reyes, Ana",
+    ]);
+    // The admin list's "Changed Trip Details" remark is derived from this event.
+    expect(detail?.remarks).toBe(CHANGED_TRIP_DETAILS_REMARK);
+
+    const events = await eventsOf(reference);
+    expect(events.map((e) => e.event_type)).toEqual(["submitted", "modified"]);
+    expect(events[1].actor_role).toBe("associate");
+  });
+
+  it("does nothing when nothing changed", async () => {
+    const reference = await submitted();
+    const { draft, version } = await loaded(reference);
+    const result = await updateBooking(
+      db,
+      requestor,
+      reference,
+      version,
+      draft,
+    );
+    expect(result).toEqual({ ok: true, value: { reference, version: 1 } });
+    expect((await eventsOf(reference)).map((e) => e.event_type)).toEqual([
+      "submitted",
+    ]);
+  });
+
+  it("refuses a stale version", async () => {
+    const reference = await submitted();
+    const { draft } = await loaded(reference);
+    draft.trips[0].pickupPoint = "New lobby";
+    const result = await updateBooking(db, requestor, reference, 0, draft);
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "VERSION_CONFLICT" },
+    });
+    expect((await rowOf(reference)).pickup_location).not.toBe("New lobby");
+  });
+
+  it("refuses once the request is no longer pending", async () => {
+    const reference = await submitted();
+    const { draft, version } = await loaded(reference);
+    await cancelReservation(db, requestor, reference, "");
+    const result = await updateBooking(
+      db,
+      requestor,
+      reference,
+      version,
+      draft,
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_TRANSITION" },
+    });
+  });
+
+  it("answers someone else's request exactly as a missing one", async () => {
+    const reference = await submitted();
+    const { draft, version } = await loaded(reference);
+    const result = await updateBooking(db, other, reference, version, draft);
+    expect(result).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } });
+  });
+
+  it("will not add a trip or switch mode", async () => {
+    const reference = await submitted();
+    const { draft, version } = await loaded(reference);
+
+    const twoTrips = { ...draft, trips: [draft.trips[0], draft.trips[0]] };
+    expect(
+      await updateBooking(db, requestor, reference, version, twoTrips),
+    ).toMatchObject({
+      ok: false,
+      error: { message: WRITE_MESSAGES.editOneTrip },
+    });
+
+    const switched = { ...standbyDraft() };
+    expect(
+      await updateBooking(db, requestor, reference, version, switched),
+    ).toMatchObject({
+      ok: false,
+      error: { message: WRITE_MESSAGES.editModeLocked },
+    });
+  });
+
+  it("holds an edit to the same rules as a submission", async () => {
+    const reference = await submitted();
+    const { draft, version } = await loaded(reference);
+    draft.trips[0].details = "  ";
+    const result = await updateBooking(
+      db,
+      requestor,
+      reference,
+      version,
+      draft,
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "VALIDATION_FAILED" },
+    });
   });
 });
 

@@ -91,6 +91,8 @@ export const WRITE_MESSAGES = {
   windowNotPositive: "A standby block must end after it starts.",
   notFound: "Reservation not found.",
   notPending: "Only a request still awaiting approval can be changed.",
+  editOneTrip: "An edit changes one trip; it cannot add or remove trips.",
+  editModeLocked: "A request cannot change between pickup and standby.",
   reassignOnly:
     "An approved request can only have its driver, van, vendor or cost changed.",
   notCancellable: "Only a pending or approved request can be cancelled.",
@@ -337,6 +339,248 @@ export async function submitBooking(
   });
 
   return ok(references);
+}
+
+// ---------------------------------------------------------------------------
+// Edit (requestor)
+// ---------------------------------------------------------------------------
+
+/** The `FieldChange` for one field, or nothing when it did not move. */
+function changeOf(
+  field: string,
+  label: string,
+  from: string | null,
+  to: string | null,
+): FieldChange[] {
+  return from === to ? [] : [{ field, label, from, to }];
+}
+
+/** Passengers as one comparable, readable string: `Name <email>; Name`. */
+function passengerSummary(
+  passengers: { name: string; email: string | null }[],
+): string {
+  return passengers
+    .map((p) => (p.email ? `${p.name} <${p.email}>` : p.name))
+    .join("; ");
+}
+
+/**
+ * Saves a requestor's edit to their own still-pending booking.
+ *
+ * The draft is the same shape `submitBooking` takes, and is held to the same
+ * rules — `validateStep(draft, 4)` again, server-side — but it must carry exactly
+ * one trip: a reservation IS one trip, so "editing" cannot add or drop one. The
+ * mode cannot change either; pickup and standby collect different columns and
+ * the row's mode-shape CHECK fixes which.
+ *
+ * Owner-only, and a non-owner gets the same 404 as an unknown reference (no
+ * existence oracle, as `cancelReservation`). Admin Support edits through
+ * `decideReservation`, which carries the assignment and decision as well.
+ *
+ * `version` is the one the edit form loaded, applied as a compare-and-set: if an
+ * admin approved, rejected or edited the request in the meantime, the save
+ * refuses rather than overwriting a decision the requestor never saw.
+ *
+ * Records a `modified` event — the same one an admin's trip edit writes, so the
+ * list's "Changed Trip Details" remark reaches the reviewer — but only when
+ * something actually moved. Saving an unchanged form is a no-op, not a version
+ * bump.
+ */
+export async function updateBooking(
+  db: Kysely<DB>,
+  actor: WriteActor,
+  referenceNo: string,
+  version: number,
+  draft: BookingDraft,
+): Promise<Result<{ reference: string; version: number }, WriteFailure>> {
+  const errors = validateStep(draft, 4);
+  if (!isDraftStepValid(errors) || draft.site === "") {
+    return err(invalid(WRITE_MESSAGES.draftIncomplete, errors));
+  }
+  if (draft.trips.length !== 1) {
+    return err(invalid(WRITE_MESSAGES.editOneTrip));
+  }
+
+  const trip = draft.trips[0];
+  const schedule = scheduleOf(draft.mode, trip);
+  if (schedule === null) return err(invalid(WRITE_MESSAGES.scheduleUnreadable));
+  if (schedule.endAt !== null && schedule.endAt <= schedule.startAt) {
+    return err(invalid(WRITE_MESSAGES.windowNotPositive));
+  }
+
+  const site = SITE_TO_DB[draft.site];
+  const mobile = normalizeMobile(draft.mobile);
+  const purpose = trip.purpose.trim();
+  const details = trip.details.trim();
+  const tower = trip.tower.trim();
+  const pickup = trip.pickupPoint.trim();
+  const passengers = trip.passengers.map((passenger) => ({
+    name: passenger.name.trim(),
+    email: passenger.email.trim() || null,
+  }));
+
+  return db.transaction().execute(async (trx) => {
+    const row = await trx
+      .selectFrom("reservations")
+      .select([
+        "id",
+        "reference_no",
+        "ride_mode",
+        "status",
+        "version",
+        "requestor_user_id",
+        "site",
+        "requestor_mobile",
+        "purpose",
+        "details",
+        "tower",
+        "approving_tower_head",
+        "pickup_location",
+        "dropoff_location",
+        "start_at",
+        "end_at",
+      ])
+      .where("reference_no", "=", referenceNo)
+      .executeTakeFirst();
+
+    if (row === undefined || row.requestor_user_id !== actor.userId) {
+      return err(notFound());
+    }
+    if (!isRequestorEditable(statusFromDb(row.status))) {
+      return err({
+        code: "INVALID_TRANSITION",
+        message: WRITE_MESSAGES.notPending,
+      });
+    }
+    if (draft.mode !== row.ride_mode) {
+      return err(invalid(WRITE_MESSAGES.editModeLocked));
+    }
+    if (row.version !== version) {
+      return err({
+        code: "VERSION_CONFLICT",
+        message: WRITE_MESSAGES.versionConflict,
+      });
+    }
+
+    const currentPassengers = await trx
+      .selectFrom("reservation_passengers")
+      .select(["name", "email"])
+      .where("reservation_id", "=", row.id)
+      .orderBy("position", "asc")
+      .execute();
+
+    const changed: FieldChange[] = [
+      ...changeOf("site", "Site", siteFromDb(row.site), draft.site),
+      ...changeOf("mobile", "Mobile number", row.requestor_mobile, mobile),
+      ...changeOf("purpose", "Purpose", row.purpose, purpose),
+      ...changeOf("details", "Details", row.details, details),
+      ...changeOf("tower", "Tower", row.tower, tower),
+      ...changeOf(
+        "towerHead",
+        "Tower Head",
+        row.approving_tower_head,
+        schedule.towerHead,
+      ),
+      ...changeOf(
+        "passengers",
+        "Passengers",
+        passengerSummary(currentPassengers),
+        passengerSummary(passengers),
+      ),
+      ...changeOf("pickupPoint", "Pickup point", row.pickup_location, pickup),
+      ...changeOf(
+        "dropoffPoint",
+        "Drop-off point",
+        row.dropoff_location,
+        schedule.dropoff,
+      ),
+      ...(row.start_at.getTime() === schedule.startAt.getTime()
+        ? []
+        : changeOf(
+            "startAt",
+            "Start",
+            displayInstant(row.start_at),
+            displayInstant(schedule.startAt),
+          )),
+      ...((row.end_at?.getTime() ?? null) ===
+      (schedule.endAt?.getTime() ?? null)
+        ? []
+        : changeOf(
+            "endAt",
+            "End",
+            displayInstant(row.end_at),
+            displayInstant(schedule.endAt),
+          )),
+    ];
+
+    // Nothing moved: no version bump, no event, no reviewer told about a
+    // "change" that is not one.
+    if (changed.length === 0) {
+      return ok({ reference: row.reference_no, version: row.version });
+    }
+
+    const nextVersion = row.version + 1;
+    const result = await trx
+      .updateTable("reservations")
+      .set({
+        site,
+        requestor_mobile: mobile,
+        purpose,
+        details,
+        tower,
+        approving_tower_head: schedule.towerHead,
+        start_at: schedule.startAt,
+        end_at: schedule.endAt,
+        pickup_location: pickup,
+        dropoff_location: schedule.dropoff,
+        version: nextVersion,
+        updated_at: new Date(),
+      })
+      .where("id", "=", row.id)
+      // Compare-and-set, as everywhere a row is written: the SELECT above and
+      // this UPDATE are not one atomic step, and an admin's decision may land
+      // between them.
+      .where("version", "=", row.version)
+      .executeTakeFirst();
+
+    if (Number(result.numUpdatedRows) === 0) {
+      return err({
+        code: "VERSION_CONFLICT",
+        message: WRITE_MESSAGES.versionConflict,
+      });
+    }
+
+    // Replaced wholesale, not diffed: a passenger row has no identity the
+    // requestor can point at, only a position.
+    await trx
+      .deleteFrom("reservation_passengers")
+      .where("reservation_id", "=", row.id)
+      .execute();
+    await trx
+      .insertInto("reservation_passengers")
+      .values(
+        passengers.map((passenger, position) => ({
+          reservation_id: row.id,
+          ...passenger,
+          position: position + 1,
+        })),
+      )
+      .execute();
+
+    await trx
+      .insertInto("reservation_events")
+      .values({
+        reservation_id: row.id,
+        actor_user_id: actor.userId,
+        actor_name: actor.name,
+        actor_role: actor.role,
+        event_type: "modified",
+        changes: JSON.stringify({ fields: changed }),
+      })
+      .execute();
+
+    return ok({ reference: row.reference_no, version: nextVersion });
+  });
 }
 
 // ---------------------------------------------------------------------------

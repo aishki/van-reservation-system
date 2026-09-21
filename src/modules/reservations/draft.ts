@@ -1,6 +1,10 @@
 import { comparePlainDates, comparePlainTimes } from "@/lib/tz";
 import { isTower, isTripPurpose } from "@/modules/reservations/reference";
-import type { RideMode, SiteLocation } from "@/modules/reservations/types";
+import type {
+  ReservationDetail,
+  RideMode,
+  SiteLocation,
+} from "@/modules/reservations/types";
 
 /**
  * The in-progress booking a requestor is filling in, and the rules that decide
@@ -163,6 +167,53 @@ export function blankTrip(): TripDraft {
 
 export function blankDraft(mode: RideMode): BookingDraft {
   return { mode, site: "", mobile: "", trips: [blankTrip()] };
+}
+
+/**
+ * A saved reservation read back as the draft the wizard edits — the inverse of
+ * what `submitBooking` writes. One reservation is one trip, so the draft always
+ * carries exactly one.
+ *
+ * Null columns become `""`, the draft's own "not filled in": `tower` is null on
+ * every reservation submitted before that field existed, and a passenger email
+ * is stored as null when it was left blank. The mode-specific fields of the
+ * OTHER mode stay blank, the same as a fresh `blankTrip`.
+ */
+export function draftFromDetail(detail: ReservationDetail): BookingDraft {
+  const standby = detail.mode === "standby";
+  const passengers = detail.passengers.map((passenger) => ({
+    name: passenger.name,
+    email: passenger.email ?? "",
+  }));
+
+  const trip: TripDraft = {
+    ...blankTrip(),
+    purpose: detail.purpose,
+    details: detail.details,
+    tower: detail.tower ?? "",
+    towerHead: detail.towerHead ?? "",
+    passengers: passengers.length > 0 ? passengers : [blankPassenger()],
+    pickupPoint: detail.pickupPoint,
+    ...(standby
+      ? {
+          startDate: detail.startDate,
+          startTime: detail.startTime,
+          endDate: detail.endDate ?? "",
+          endTime: detail.endTime ?? "",
+        }
+      : {
+          pickupDate: detail.startDate,
+          pickupTime: detail.startTime,
+          dropoffPoint: detail.dropoffPoint ?? "",
+        }),
+  };
+
+  return {
+    mode: detail.mode,
+    site: detail.site,
+    mobile: detail.requestorMobile,
+    trips: [trip],
+  };
 }
 
 /**

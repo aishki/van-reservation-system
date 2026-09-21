@@ -60,6 +60,15 @@ export const bookingDraftSchema = z.object({
 });
 
 /**
+ * A requestor's edit of their own pending booking: the draft as re-entered, plus
+ * the row `version` the edit form loaded (see `updateBooking`).
+ */
+export const bookingEditSchema = z.object({
+  version: z.int().nonnegative(),
+  draft: bookingDraftSchema,
+});
+
+/**
  * The two sides of an assignment, each roster-or-rental, discriminated by
  * `source`. `satisfies` pins them to the contract `types.ts` declares, so a
  * schema that drifts from `DriverInput` / `VanInput` fails to compile here

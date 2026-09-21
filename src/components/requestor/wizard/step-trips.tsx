@@ -34,6 +34,11 @@ import {
 import { MAX_TRIPS_PER_SUBMISSION } from "@/modules/reservations/wire";
 
 interface StepTripsProps {
+  /**
+   * Editing a saved request: it is one trip, so nothing here adds, duplicates or
+   * removes one. The server refuses a multi-trip edit too.
+   */
+  editing?: boolean;
   draft: BookingDraft;
   errors: DraftErrors;
   onTrip: (index: number, patch: Partial<TripDraft>) => void;
@@ -59,6 +64,7 @@ interface StepTripsProps {
  * up harder to read than the two written out.
  */
 export function StepTrips({
+  editing = false,
   draft,
   errors,
   onTrip,
@@ -83,9 +89,11 @@ export function StepTrips({
         {standby ? "Standby dates" : "Trip details"}
       </h2>
       <p className={cn(STEP_SUBHEADING, "mt-1.5 mb-[22px]")}>
-        {standby
-          ? "Add one block per day the van is needed."
-          : "Add one block per trip. Everything marked * is required."}
+        {editing
+          ? "Update anything that changed. Everything marked * is required."
+          : standby
+            ? "Add one block per day the van is needed."
+            : "Add one block per trip. Everything marked * is required."}
       </p>
 
       <div className="flex flex-col gap-[26px]">
@@ -104,28 +112,30 @@ export function StepTrips({
                 <h3 className="text-[1.375rem] font-medium text-brand">
                   {label}
                 </h3>
-                <Hint
-                  content="A booking needs at least one trip."
-                  when={onlyOne}
-                  wrap
-                  wrapClassName="ml-auto"
-                >
-                  <button
-                    type="button"
-                    onClick={() => onRemoveTrip(index)}
-                    disabled={onlyOne}
-                    aria-label={`Remove ${label}`}
-                    className={cn(
-                      "ml-auto flex items-center gap-2 rounded-pill bg-error px-5 py-2.5 text-body font-medium text-primary-foreground hover:brightness-90 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-error",
-                      onlyOne
-                        ? "cursor-not-allowed opacity-40"
-                        : "cursor-pointer",
-                    )}
+                {!editing && (
+                  <Hint
+                    content="A booking needs at least one trip."
+                    when={onlyOne}
+                    wrap
+                    wrapClassName="ml-auto"
                   >
-                    <Trash2 aria-hidden="true" className="size-4" />
-                    Remove
-                  </button>
-                </Hint>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveTrip(index)}
+                      disabled={onlyOne}
+                      aria-label={`Remove ${label}`}
+                      className={cn(
+                        "ml-auto flex items-center gap-2 rounded-pill bg-error px-5 py-2.5 text-body font-medium text-primary-foreground hover:brightness-90 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-error",
+                        onlyOne
+                          ? "cursor-not-allowed opacity-40"
+                          : "cursor-pointer",
+                      )}
+                    >
+                      <Trash2 aria-hidden="true" className="size-4" />
+                      Remove
+                    </button>
+                  </Hint>
+                )}
               </div>
 
               <WizardSelect
@@ -198,42 +208,48 @@ export function StepTrips({
                 </p>
               )}
 
-              <hr className="mt-6 mb-5 border-gray-6" />
+              {!editing && (
+                <>
+                  <hr className="mt-6 mb-5 border-gray-6" />
 
-              <Hint content={capHint} when={atCap} wrap>
-                <button
-                  type="button"
-                  onClick={() => onDuplicateTrip(index)}
-                  disabled={atCap}
-                  className={cn(
-                    WIZARD_DUPLICATE_TRIP,
-                    atCap &&
-                      "cursor-not-allowed opacity-50 hover:brightness-100",
-                  )}
-                >
-                  <Copy aria-hidden="true" className="size-4" />
-                  Duplicate {standby ? "Date" : "Trip"}
-                </button>
-              </Hint>
+                  <Hint content={capHint} when={atCap} wrap>
+                    <button
+                      type="button"
+                      onClick={() => onDuplicateTrip(index)}
+                      disabled={atCap}
+                      className={cn(
+                        WIZARD_DUPLICATE_TRIP,
+                        atCap &&
+                          "cursor-not-allowed opacity-50 hover:brightness-100",
+                      )}
+                    >
+                      <Copy aria-hidden="true" className="size-4" />
+                      Duplicate {standby ? "Date" : "Trip"}
+                    </button>
+                  </Hint>
+                </>
+              )}
             </section>
           );
         })}
 
-        <Hint content={capHint} when={atCap} wrap wrapClassName="w-full">
-          <button
-            type="button"
-            onClick={onAddTrip}
-            disabled={atCap}
-            className={cn(
-              "rounded-card border-[1.5px] border-dashed border-primary bg-background p-[18px] text-[1.0625rem] font-semibold text-brand focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-primary",
-              atCap
-                ? "w-full cursor-not-allowed opacity-50"
-                : "w-full cursor-pointer hover:bg-brand-wash",
-            )}
-          >
-            + {standby ? "Add another date" : "Add another trip"}
-          </button>
-        </Hint>
+        {!editing && (
+          <Hint content={capHint} when={atCap} wrap wrapClassName="w-full">
+            <button
+              type="button"
+              onClick={onAddTrip}
+              disabled={atCap}
+              className={cn(
+                "rounded-card border-[1.5px] border-dashed border-primary bg-background p-[18px] text-[1.0625rem] font-semibold text-brand focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-primary",
+                atCap
+                  ? "w-full cursor-not-allowed opacity-50"
+                  : "w-full cursor-pointer hover:bg-brand-wash",
+              )}
+            >
+              + {standby ? "Add another date" : "Add another trip"}
+            </button>
+          </Hint>
+        )}
       </div>
     </>
   );

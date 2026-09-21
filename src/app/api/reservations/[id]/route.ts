@@ -8,10 +8,11 @@ import { selectMailTransport } from "@/modules/email/select-transport";
 import { getReservationDetail } from "@/modules/reservations/repo";
 import { requestorFacingStatus } from "@/modules/reservations/types";
 import {
+  bookingEditSchema,
   decisionInputSchema,
   parseJsonBody,
 } from "@/modules/reservations/wire";
-import { decideReservation } from "@/modules/reservations/write";
+import { decideReservation, updateBooking } from "@/modules/reservations/write";
 
 const NOT_FOUND_MESSAGE = "Reservation not found.";
 
@@ -48,6 +49,41 @@ export async function GET(
   }
 
   return Response.json(found.detail);
+}
+
+/**
+ * A requestor's edit of their own pending booking. Ownership is enforced inside
+ * `updateBooking` — not-yours and not-found are one 404 — so the check here is
+ * only that a session exists.
+ */
+export async function PUT(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const user = await requireUser();
+  if (!user.ok) {
+    return errorResponse(user.error, "Sign in to edit a request.");
+  }
+
+  const input = await parseJsonBody(req, bookingEditSchema);
+  if (input === null) {
+    return errorResponse("VALIDATION_FAILED", "Send the request as JSON.");
+  }
+
+  const { id } = await params;
+  const saved = await updateBooking(
+    getDb(),
+    user.value,
+    id,
+    input.version,
+    input.draft,
+  );
+  if (!saved.ok) {
+    const { code, message, details } = saved.error;
+    return errorResponse(code, message, details);
+  }
+
+  return Response.json(saved.value);
 }
 
 /**
